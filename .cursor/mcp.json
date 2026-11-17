@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "enterprise-docs": {
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["-m", "app.mcp_server"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

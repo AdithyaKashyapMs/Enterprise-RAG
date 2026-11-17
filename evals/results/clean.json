@@ -1,0 +1,875 @@
+{
+  "date": "2026-11-16",
+  "corpus": {
+    "documents": 6,
+    "chunks": 126,
+    "distractor_chunks": 0
+  },
+  "top_k": 5,
+  "metrics": {
+    "vector": {
+      "all": {
+        "hit@1": 0.833,
+        "hit@5": 0.917,
+        "mrr": 0.875,
+        "noise@5": 0.0,
+        "n": 24
+      },
+      "direct": {
+        "hit@1": 0.917,
+        "hit@5": 1.0,
+        "mrr": 0.958,
+        "noise@5": 0.0,
+        "n": 12
+      },
+      "paraphrased": {
+        "hit@1": 0.75,
+        "hit@5": 0.833,
+        "mrr": 0.792,
+        "noise@5": 0.0,
+        "n": 12
+      }
+    },
+    "reranked": {
+      "all": {
+        "hit@1": 0.958,
+        "hit@5": 1.0,
+        "mrr": 0.979,
+        "noise@5": 0.0,
+        "n": 24
+      },
+      "direct": {
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0,
+        "n": 12
+      },
+      "paraphrased": {
+        "hit@1": 0.917,
+        "hit@5": 1.0,
+        "mrr": 0.958,
+        "noise@5": 0.0,
+        "n": 12
+      }
+    }
+  },
+  "cases": [
+    {
+      "difficulty": "direct",
+      "question": "What does etcd do in a Kubernetes cluster?",
+      "top_sources": {
+        "vector": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ],
+        "reranked": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "What does kube-proxy manage on each node?",
+      "top_sources": {
+        "vector": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ],
+        "reranked": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How do I stop a CronJob from starting a new run while the previous one is still running?",
+      "top_sources": {
+        "vector": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "architecture.pptx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How can finished Kubernetes Jobs be cleaned up automatically?",
+      "top_sources": {
+        "vector": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "What is the difference between completions and parallelism in a Job spec?",
+      "top_sources": {
+        "vector": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "architecture.pptx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "architecture.pptx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How do I limit how many successful and failed job runs a CronJob keeps in its history?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "architecture.pptx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "architecture.pptx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": 2,
+        "hit@1": 0.0,
+        "hit@5": 1.0,
+        "mrr": 0.5,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How do I create a Databricks job from a JSON file using the CLI?",
+      "top_sources": {
+        "vector": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html"
+        ],
+        "reranked": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How do I view the logs of a pod created by a Kubernetes job?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "What do the COMPLETIONS and DURATION columns mean when listing jobs?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "architecture.pptx",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "Which storage service holds the work queue in the fine parallel processing example?",
+      "top_sources": {
+        "vector": [
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "architecture.pptx",
+          "parallel_work_queue.txt",
+          "cronjobs.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "How do I configure a HorizontalPodAutoscaler with minReplicas and maxReplicas based on CPU?",
+      "top_sources": {
+        "vector": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ],
+        "reranked": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "direct",
+      "question": "What does updateMode Auto do in a Vertical Pod Autoscaler?",
+      "top_sources": {
+        "vector": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ],
+        "reranked": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "Which component decides which machine a newly created workload should be placed on?",
+      "top_sources": {
+        "vector": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ],
+        "reranked": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "What agent runs on every worker machine and looks after the lifecycle of the containers there?",
+      "top_sources": {
+        "vector": [
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx",
+          "architecture.pptx"
+        ],
+        "reranked": [
+          "architecture.pptx",
+          "cronjobs.docx",
+          "architecture.pptx",
+          "monitor_job.docx",
+          "architecture.pptx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How can I make a recurring task fire at 2 AM New York time instead of UTC?",
+      "top_sources": {
+        "vector": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "job_management.html",
+          "cronjobs.docx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How do I put a hard upper limit on how long a batch task may run before it is terminated?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ]
+      },
+      "vector": {
+        "rank": 2,
+        "hit@1": 0.0,
+        "hit@5": 1.0,
+        "mrr": 0.5,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How can each worker in a batch task be given its own unique number so it knows which slice of work to do?",
+      "top_sources": {
+        "vector": [
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt",
+          "monitor_job.docx",
+          "parallel_work_queue.txt"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "parallel_work_queue.txt",
+          "parallel_work_queue.txt"
+        ]
+      },
+      "vector": {
+        "rank": null,
+        "hit@1": 0.0,
+        "hit@5": 0.0,
+        "mrr": 0.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How do I make my terminal block until a batch task has finished, giving up after five minutes?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "monitor_job.docx"
+        ]
+      },
+      "vector": {
+        "rank": null,
+        "hit@1": 0.0,
+        "hit@5": 0.0,
+        "mrr": 0.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 2,
+        "hit@1": 0.0,
+        "hit@5": 1.0,
+        "mrr": 0.5,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How do I kick off an immediate execution of a Databricks workflow I already defined, from the terminal?",
+      "top_sources": {
+        "vector": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html"
+        ],
+        "reranked": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How do I make sure two executions of the same Databricks workflow never overlap?",
+      "top_sources": {
+        "vector": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "cronjobs.docx",
+          "cronjobs.docx"
+        ],
+        "reranked": [
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html",
+          "job_management.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "What has to be installed in the cluster before it can add or remove replicas based on processor usage?",
+      "top_sources": {
+        "vector": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ],
+        "reranked": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "How can I flood my web app with requests to check that it grows under pressure?",
+      "top_sources": {
+        "vector": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "pods_autoscale.html",
+          "architecture.pptx",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "Which right-sizing mode only sets container resources when pods are first created and never touches them afterwards?",
+      "top_sources": {
+        "vector": [
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html",
+          "pods_autoscale.html"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    },
+    {
+      "difficulty": "paraphrased",
+      "question": "My batch task never created any pods. Which commands show what went wrong?",
+      "top_sources": {
+        "vector": [
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx",
+          "monitor_job.docx"
+        ],
+        "reranked": [
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx",
+          "monitor_job.docx",
+          "cronjobs.docx"
+        ]
+      },
+      "vector": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      },
+      "reranked": {
+        "rank": 1,
+        "hit@1": 1.0,
+        "hit@5": 1.0,
+        "mrr": 1.0,
+        "noise@5": 0.0
+      }
+    }
+  ]
+}

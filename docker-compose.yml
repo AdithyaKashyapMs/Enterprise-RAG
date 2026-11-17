@@ -1,0 +1,75 @@
+# Whole stack with one command:   docker compose up -d --build
+#   API  -> http://localhost:8000   (docs at /docs)
+#   UI   -> http://localhost:8501
+#   Qdrant dashboard -> http://localhost:6333/dashboard
+#
+# First run only — index the documents into the Qdrant container:
+#   docker compose run --rm ingest
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.20.0          # pinned, so every machine runs the same version
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage       # vectors survive `docker compose down`
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    image: enterprise-rag:latest
+    env_file: .env                        # API keys come from .env at runtime, never baked into the image
+    environment:
+      # Containers reach each other by service name, not localhost.
+      QDRANT_CLUSTER_ENDPOINT: http://qdrant:6333
+      QDRANT_API_KEY: ""
+      QDRANT_PATH: ""                     # force server mode even if .env sets embedded mode
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_data:/app/data                # SQLite conversation memory
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: enterprise-rag:latest          # same image, different command
+    command: ["streamlit", "run", "ui/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true"]
+    env_file: .env
+    environment:
+      BACKEND_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4)"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-off job, not started by `up`:  docker compose run --rm ingest
+  ingest:
+    image: enterprise-rag:latest
+    profiles: ["tools"]
+    command: ["python", "-m", "app.ingestion.processor", "DATA/true_data", "true"]
+    env_file: .env
+    environment:
+      QDRANT_CLUSTER_ENDPOINT: http://qdrant:6333
+      QDRANT_API_KEY: ""
+      QDRANT_PATH: ""
+    volumes:
+      - ./DATA:/app/DATA:ro               # read-only: the container can't modify your documents
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+volumes:
+  qdrant_data:
+  app_data:

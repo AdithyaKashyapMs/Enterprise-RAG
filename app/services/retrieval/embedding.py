@@ -1,102 +1,132 @@
+"""
+Embedding model selection.
+
+EMBEDDING_PROVIDER=gemini | local | auto (default auto: Gemini if reachable, else local).
+
+The vector dimension is measured from a real embedding instead of being
+hard-coded, and Qdrant search verifies it matches the collection — so a silent
+switch between providers can never produce garbage or empty results.
+"""
+
+import os
+import re
 import time
+from typing import Callable, TypeVar
+
 import logfire
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
 from app.config import settings
 
 BATCH_SIZE = 50
-_GEMINI_DIM = 3072
-_FALLBACK_DIM = 768  # all-mpnet-base-v2
+REQUEST_TIMEOUT_S = float(os.getenv("EMBED_TIMEOUT_S", "60"))
+T = TypeVar("T")
 
 _active_model = None
-_model_type: str | None = None  # "gemini" or "fallback"
+_model_type: str | None = None  # "gemini" | "local"
+_dim: int | None = None
 
 
-# ── Model initialisation ───────────────────────────────────────────────────────
+def _load_gemini():
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-def _probe_gemini():
-    """Try one embed call to verify Gemini is reachable. Returns model or None."""
-    try:
-        model = GoogleGenerativeAIEmbeddings(
-            model="models/gemini-embedding-2-preview",
-            google_api_key=settings.GEMINI_API_KEY,
-        )
-        model.embed_query("probe")
-        logfire.info("Gemini embeddings ready (gemini-embedding-2-preview, 3072-dim).")
-        return model
-    except Exception as e:
-        logfire.warning(f"Gemini probe failed: {e}. Will use sentence-transformers fallback.")
-        return None
+    model = GoogleGenerativeAIEmbeddings(
+        model=settings.GEMINI_EMBEDDING_MODEL,
+        google_api_key=settings.GEMINI_API_KEY,
+        # Without a timeout a dropped connection (e.g. laptop sleep) blocks forever on SSL read.
+        client_args={"timeout": REQUEST_TIMEOUT_S},
+    )
+    probe = model.embed_query("probe")
+    return model, len(probe)
 
 
-def _load_fallback():
+def _load_local():
     from sentence_transformers import SentenceTransformer
-    logfire.info("Loading sentence-transformers fallback (all-mpnet-base-v2, 768-dim).")
-    return SentenceTransformer("all-mpnet-base-v2")
+
+    model = SentenceTransformer(settings.LOCAL_EMBEDDING_MODEL)
+    return model, model.get_sentence_embedding_dimension()
 
 
 def _init():
-    """Initialise embedding model once per process. Called lazily on first use."""
-    global _active_model, _model_type
+    """Initialise the embedding model once per process."""
+    global _active_model, _model_type, _dim
     if _active_model is not None:
         return
 
-    gemini = _probe_gemini()
-    if gemini:
-        _active_model = gemini
-        _model_type = "gemini"
-    else:
-        _active_model = _load_fallback()
-        _model_type = "fallback"
+    provider = os.getenv("EMBEDDING_PROVIDER", "auto").lower()
 
+    if provider in ("gemini", "auto"):
+        try:
+            _active_model, _dim = _load_gemini()
+            _model_type = "gemini"
+            logfire.info(f"Gemini embeddings ready ({settings.GEMINI_EMBEDDING_MODEL}, {_dim}-dim).")
+            return
+        except Exception as e:
+            if provider == "gemini":
+                raise RuntimeError(f"Gemini embeddings unavailable: {e}") from e
+            logfire.warning(f"Gemini unavailable ({e}); using local embeddings.")
 
-# ── Public helpers ─────────────────────────────────────────────────────────────
+    _active_model, _dim = _load_local()
+    _model_type = "local"
+    logfire.info(f"Local embeddings ready ({settings.LOCAL_EMBEDDING_MODEL}, {_dim}-dim).")
+
 
 def get_embedding_dim() -> int:
-    """Return the vector dimension for the active model. Call after _init()."""
     _init()
-    return _GEMINI_DIM if _model_type == "gemini" else _FALLBACK_DIM
+    return _dim
 
 
-# ── Batch embedding with retry ─────────────────────────────────────────────────
+def get_embedding_model_name() -> str:
+    _init()
+    return settings.GEMINI_EMBEDDING_MODEL if _model_type == "gemini" else settings.LOCAL_EMBEDDING_MODEL
+
+
+MAX_ATTEMPTS = int(os.getenv("EMBED_MAX_ATTEMPTS", "6"))
+MAX_WAIT_S = 65.0
+_RETRY_DELAY_RE = re.compile(r"retryDelay'?\"?:\s*'?\"?(\d+(?:\.\d+)?)s")
+
+
+def _with_rate_limit_retry(fn: Callable[[], T], what: str, max_attempts: int = MAX_ATTEMPTS) -> T:
+    """
+    Retry Gemini rate-limit (429 / RESOURCE_EXHAUSTED) errors and network timeouts.
+    Honours the server's retryDelay hint when present (free tier asks for 20-60s),
+    otherwise backs off exponentially. Other errors are raised immediately.
+    """
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except Exception as e:
+            err = str(e)
+            lowered = f"{type(e).__name__} {err}".lower()
+            retryable = any(x in lowered for x in ("429", "rate limit", "quota", "resource_exhausted",
+                                                   "timeout", "timed out", "connection"))
+            if not retryable or attempt == max_attempts:
+                raise
+            hint = _RETRY_DELAY_RE.search(err)
+            wait = min(float(hint.group(1)) + 1 if hint else 2**attempt, MAX_WAIT_S)
+            logfire.warning(f"Gemini error on {what} ({type(e).__name__}) — retrying in {wait:.0f}s ({attempt}/{max_attempts}).")
+            time.sleep(wait)
+    raise RuntimeError("unreachable")
+
 
 def _embed_batch(batch: list[str]) -> list[list[float]]:
-    if _model_type == "gemini":
-        # Exponential backoff: 1 s → 2 s → 4 s → 8 s (4 attempts total)
-        for attempt in range(4):
-            try:
-                return _active_model.embed_documents(batch)
-            except Exception as e:
-                err = str(e).lower()
-                is_rate_limit = any(x in err for x in ("429", "rate", "quota", "resource_exhausted"))
-                if is_rate_limit and attempt < 3:
-                    wait = 2 ** attempt
-                    logfire.warning(
-                        f"Gemini rate limit hit — retrying in {wait}s "
-                        f"(attempt {attempt + 1}/4)."
-                    )
-                    time.sleep(wait)
-                else:
-                    logfire.error(f"Gemini embedding failed: {e}")
-                    raise
-        raise RuntimeError("Gemini rate limit persisted after 4 attempts.")
-    else:
+    if _model_type != "gemini":
         return _active_model.encode(batch, show_progress_bar=False).tolist()
+    return _with_rate_limit_retry(lambda: _active_model.embed_documents(batch), "batch")
 
-
-# ── Public API (same signatures as before) ─────────────────────────────────────
 
 def embed_query(query: str) -> list[float]:
     _init()
     if _model_type == "gemini":
-        return _active_model.embed_query(query)
+        # Fewer attempts at query time: a user is waiting.
+        return _with_rate_limit_retry(lambda: _active_model.embed_query(query), "query", max_attempts=2)
     return _active_model.encode([query])[0].tolist()
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     _init()
-    all_embeddings: list[list[float]] = []
+    vectors: list[list[float]] = []
     for i in range(0, len(texts), BATCH_SIZE):
         batch = texts[i : i + BATCH_SIZE]
         with logfire.span("Embed batch", model=_model_type, start=i, size=len(batch)):
-            all_embeddings.extend(_embed_batch(batch))
-    return all_embeddings
+            vectors.extend(_embed_batch(batch))
+    return vectors

@@ -1,48 +1,62 @@
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+import os
+import sqlite3
+
+import logfire
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+from app.agents.nodes.agent import agent_node
 from app.agents.state import AgentState
-from app.agents.nodes.planner import planner_node
-from app.agents.nodes.retriever import retrieve_node
-from app.agents.nodes.responder import generate_node
+from app.agents.tools import TOOLS
 
 
-# 1. Initialize the State Graph
-workflow = StateGraph(AgentState)
-
-
-# 2. Define the Nodes
-workflow.add_node("planner", planner_node)
-workflow.add_node("retriever", retrieve_node)
-workflow.add_node("responder", generate_node)
-
-
-# 3. Define the Edges & Routing Logic
-def route_planner(state: AgentState):
+def build_workflow() -> StateGraph:
     """
-    Routes the workflow based on the planner's decision.
+    START -> agent --(tool calls?)--> tools -> agent -> ... -> END
+
+    The loop ends when the agent replies without tool calls; the agent node caps
+    the number of tool rounds per question (MAX_TOOL_ROUNDS).
     """
-    if state["current_query"] == "CONVERSATIONAL":
-        return "responder"
-    return "retriever"
+    workflow = StateGraph(AgentState)
+    workflow.add_node("agent", agent_node)
+    # handle_tool_errors: a failing tool returns an error message to the model instead of crashing.
+    workflow.add_node("tools", ToolNode(TOOLS, handle_tool_errors=True))
+
+    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
+    workflow.add_edge("tools", "agent")
+    return workflow
 
 
-workflow.set_entry_point("planner")
+def build_checkpointer():
+    """
+    Conversation memory keyed by thread_id.
+    SQLite (survives restarts) when langgraph-checkpoint-sqlite is installed;
+    in-memory otherwise. Set CHECKPOINT_DB=":memory:" to force in-memory.
+    """
+    db_path = os.getenv("CHECKPOINT_DB", "checkpoints.sqlite")
+    if db_path != ":memory:":
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+
+            logfire.info(f"Using SQLite conversation memory at {db_path}")
+            return SqliteSaver(sqlite3.connect(db_path, check_same_thread=False))
+        except ImportError:
+            logfire.warning("langgraph-checkpoint-sqlite not installed — memory is in-process only.")
+
+    from langgraph.checkpoint.memory import MemorySaver
+
+    return MemorySaver()
 
 
-# Conditional Edge: Planner -> Router -> (Retriever OR Responder)
-workflow.add_conditional_edges(
-    "planner", route_planner, {"retriever": "retriever", "responder": "responder"}
-)
+rag_agent = build_workflow().compile(checkpointer=build_checkpointer())
 
 
-workflow.add_edge("retriever", "responder")
-workflow.add_edge("responder", END)
-
-
-# --- MEMORY UPGRADE ---
-# MemorySaver allows the agent to remember conversations based on 'thread_id'
-checkpointer = MemorySaver()
-
-
-# 4. Compile the Graph with Memory
-rag_agent = workflow.compile(checkpointer=checkpointer)
+def record_turn(thread_id: str, user_msg: str, assistant_msg: str) -> None:
+    """Append a turn handled outside the graph (e.g. by guardrails) to the thread's memory."""
+    rag_agent.update_state(
+        {"configurable": {"thread_id": thread_id}},
+        {"messages": [HumanMessage(user_msg), AIMessage(assistant_msg)]},
+        as_node="agent",
+    )

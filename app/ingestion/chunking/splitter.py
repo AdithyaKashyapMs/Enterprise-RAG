@@ -1,30 +1,34 @@
 from typing import List
-import logfire
 
-def chunk_text(text: str, chunk_size: int = 1500) -> List[str]:
+import logfire
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from app.config import settings
+
+
+def chunk_text(
+    text: str,
+    chunk_size: int = settings.CHUNK_SIZE,
+    chunk_overlap: int = settings.CHUNK_OVERLAP,
+) -> List[str]:
     """
-    Simple semantic-ish chunker that splits by paragraphs.
-    Ensures chunks do not exceed the specified size.
+    Split text into overlapping chunks no larger than `chunk_size` characters.
+
+    Tries paragraph breaks first, then lines, then sentences, then words — so
+    structure is preserved where possible but no chunk can exceed the limit
+    (unlike a paragraph-only splitter, which emits whole documents as one chunk
+    when the loader doesn't produce blank lines). Overlap keeps facts that
+    straddle a boundary retrievable from either side.
     """
-    with logfire.span("✂️ Text Chunking", text_length=len(text)):
-        if not text.strip(): 
+    with logfire.span("Text Chunking", text_length=len(text)):
+        if not text or not text.strip():
             return []
-            
-        paragraphs = text.split("\n\n")
-        chunks = []
-        current_chunk = ""
-        
-        for p in paragraphs:
-            if len(current_chunk) + len(p) < chunk_size:
-                current_chunk += p + "\n\n"
-            else:
-                if current_chunk.strip():
-                    chunks.append(current_chunk.strip())
-                current_chunk = p + "\n\n"
-        
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
-            
-        valid_chunks = [c for c in chunks if c.strip()]
-        logfire.info(f"✅ Generated {len(valid_chunks)} chunks")
-        return valid_chunks
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=["\n\n", "\n", ". ", " ", ""],
+        )
+        chunks = [c.strip() for c in splitter.split_text(text) if c.strip()]
+        logfire.info(f"Generated {len(chunks)} chunks")
+        return chunks
