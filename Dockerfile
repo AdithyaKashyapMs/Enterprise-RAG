@@ -11,7 +11,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HOME=/app/.cache/huggingface \
-    CHECKPOINT_DB=/app/data/checkpoints.sqlite
+    CHECKPOINT_DB=/app/data/checkpoints.sqlite \
+    FEEDBACK_DB=/app/data/feedback.sqlite
 
 WORKDIR /app
 
@@ -21,10 +22,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Dependencies (copied BEFORE the code, so this slow layer is cached) ----
+# constraints.txt pins the exact versions tested locally: reproducible builds, and pip doesn't
+# spend hours backtracking through versions of unpinned packages.
+COPY requirements.txt constraints.txt ./
 # CPU-only PyTorch for the local embedding fallback: ~200 MB instead of ~2 GB of CUDA libraries.
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install torch -c constraints.txt --index-url https://download.pytorch.org/whl/cpu
+RUN pip install -r requirements.txt -c constraints.txt
 
 # Download the FlashRank reranker model at build time, so the first query isn't slow.
 RUN python -c "import tempfile, os; from flashrank import Ranker; Ranker(cache_dir=os.path.join(tempfile.gettempdir(), 'flashrank'))"
