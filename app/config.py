@@ -20,6 +20,15 @@ class Settings:
     # Embedded, on-disk Qdrant (no server needed). Takes precedence over QDRANT_CLUSTER_ENDPOINT.
     QDRANT_PATH = os.getenv("QDRANT_PATH")
 
+    # --- RETRIEVAL / RANKING ---
+    # Hybrid candidate generation: BM25 keyword search + vector search, fused with RRF.
+    # Off by default: on the eval set vector recall@15 is already 1.0, so BM25 adds distractor
+    # chunks without adding recall (see README → Evaluation). Worth enabling for keyword-heavy
+    # queries (error codes, config keys) or with a stronger reranker.
+    HYBRID_SEARCH = os.getenv("HYBRID_SEARCH", "false").lower() in ("1", "true", "yes")
+    # Learned ranker (logistic regression trained on 👍/👎 feedback). Used when the file exists.
+    LTR_MODEL_PATH = os.getenv("LTR_MODEL_PATH", "ltr_model.json")
+
     # --- AGENT ---
     MAX_TOOL_ROUNDS = int(os.getenv("MAX_TOOL_ROUNDS", "4"))
 
