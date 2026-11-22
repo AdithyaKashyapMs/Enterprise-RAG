@@ -51,6 +51,30 @@ like `cronjobs.docx#12`, and answers must cite them.
   one direct search + answer.
 - Earlier turns are compacted to question + final answer, so tool output never bloats memory.
 
+**Search is shaped like a recommender.** `search_docs` runs three stages:
+1. *Candidate generation*: vector search pulls 15 candidates from the whole index. Optional
+   **hybrid mode** adds BM25 keyword search and fuses both with Reciprocal Rank Fusion
+   (`HYBRID_SEARCH=true`; off by default, see Evaluation).
+2. *Ranking*: a FlashRank cross-encoder rescores the candidates.
+3. *Re-ranking*: personalisation, then **MMR diversity** (relevance vs. similarity to passages
+   already picked) with at most 2 chunks per file. Personalisation is a **learned ranker**
+   (logistic regression on cross-encoder, vector, BM25 and vote features, trained on 👍/👎 with
+   inverse-propensity weighting against position bias) once one is trained, and a small capped
+   vote boost until then. New documents get a fading **exploration boost** so they can collect
+   feedback at all (item cold start).
+
+**Recommendations around each answer**
+- *Related documents*: **content-based** (nearest chunks to the cited passages, by stored
+  vector) plus **collaborative** ("read together in N conversations", item-to-item
+  co-occurrence, minimum support 2). Content-based covers the cold start, before any history exists.
+- *People who asked this also asked*: questions from other conversations citing the same passages.
+- *Starter questions* for new users: the most-asked questions with a cited, non-downvoted
+  answer, topped up with curated defaults when there is no traffic yet (user cold start).
+
+Every passage shown is logged as an impression (position, cited or not, ranking features).
+That log is the training data for the learned ranker and the source for collaborative filtering.
+Votes are one per conversation per passage, so one user can't inflate a passage.
+
 **One tool implementation, two front-ends.** `app/tools/docs.py` is the single implementation;
 `app/agents/tools.py` wraps it for LangGraph and `app/mcp_server.py` wraps it for MCP.
 
@@ -83,18 +107,50 @@ needs an LLM key). All return structured output with an output schema.
 
 ## Evaluation
 
-`evals/golden_set.json` has 12 questions with the source file each answer lives in.
+`evals/golden_set.json` has 24 questions (12 worded like the docs, 12 paraphrased) with the file
+each answer lives in. Retrieval is scored on an index that also contains **57 unrelated technical
+documents as distractors** (63 files, 5,085 chunks, 4,959 of them distractors), using local
+`all-mpnet-base-v2` embeddings, at every stage of the pipeline:
 
-| Metric (true_data corpus, Gemini embeddings + FlashRank) | Result |
-|---|---|
-| hit@5 (expected source in top 5 passages) | **12/12 (1.00)** |
-| MRR | **1.00** |
+| Stage (24 questions) | hit@1 | hit@5 | MRR | files in top 5 | distractors in top 5 |
+|---|---|---|---|---|---|
+| BM25 only | 0.667 | 0.917 | 0.755 | 2.58 | 0.27 |
+| Vector only | 0.750 | 1.000 | 0.836 | 2.08 | 0.09 |
+| Hybrid (vector + BM25, RRF) only | 0.792 | 0.958 | 0.852 | 1.96 | 0.14 |
+| Vector → rerank | 0.833 | 0.958 | 0.878 | 2.04 | 0.10 |
+| **Vector → rerank → MMR (default)** | **0.833** | **1.000** | **0.892** | **3.29** | 0.14 |
+| Hybrid → rerank → MMR | 0.792 | 0.958 | 0.861 | 3.42 | 0.26 |
 
-A small, single-corpus set — treat it as a regression check, not a benchmark. Next step: index
-`noisy_data` (~60 distractor documents) and report `noise@5`.
+- **Reranking** lifts hit@1 from 0.75 to 0.83 (paraphrased questions: 0.58 to 0.75).
+- **MMR** raises diversity from about 2 to 3.3 files per result list without losing accuracy;
+  the trade-off is more distractor files in the freed slots (0.10 to 0.14).
+- **Hybrid search helps on its own but not in the full pipeline.** Vector search already has the
+  right file among its 15 candidates for every question (candidate recall@15 = 1.0), so BM25
+  can't add recall; it adds keyword-overlap chunks from long distractor documents that the small
+  cross-encoder then ranks too high. Hence `HYBRID_SEARCH` is off by default. It should matter
+  more for exact identifiers (error codes, config keys) or with a stronger reranker.
+
+**Learned ranker, with simulated feedback** (`python -m evals.simulate_ltr`). No real users yet, so
+users are simulated on the real index: they see the top 5, examine position k with probability
+1/k, and 👍 relevant passages 90% of the time (10% for irrelevant ones). Rankers are trained on
+200 sessions per question and scored on held-out questions (3-fold cross-validation):
+
+| Ranker | explicit 👍/👎: hit@1 / MRR | implicit clicks: hit@1 / MRR |
+|---|---|---|
+| Cross-encoder only (no learning) | 0.792 / 0.865 | 0.792 / 0.865 |
+| Learned, naive | 0.750 / 0.845 | 0.667 / 0.788 |
+| Learned, with position-bias correction (IPW) | 0.792 / **0.882** | 0.750 / 0.861 |
+
+Ignoring position bias makes the learned ranker *worse* than not learning at all, most clearly
+with click-style data, where the naive model learned to over-trust BM25 (weight 0.32 vs 0.07 with
+IPW). With IPW it matches or slightly beats the cross-encoder. Caveats: the simulated users follow
+exactly the click model IPW assumes, and 24 questions means one question moves hit@1 by 0.04.
+
+A 24-question set is a regression check, not a benchmark.
 
 ```bash
-python -m evals.run_eval                       # retrieval metrics
+python -m evals.run_eval                       # retrieval metrics, every stage
+python -m evals.simulate_ltr                   # learned ranker vs position bias (simulated users)
 python -m evals.run_eval --answers             # + agent: mention rate, citation rate, avg tool calls
 ```
 
@@ -145,13 +201,14 @@ graph; `GET /health` is a liveness probe.
 ## Tests
 
 ```bash
-pytest -q tests     # 38 tests, fully offline (scripted fake LLM, in-memory corpus)
+pytest -q tests     # 72 tests, fully offline (scripted fake LLM, in-memory corpus)
 ```
 
 Covers the tool-calling loop (search → cite, memory turns without tools, multi-tool plans with
 source filter + read, tool budget, degraded fallback, history compaction), the MCP server through
 a real MCP client session (tool listing, schemas, annotations, errors), guardrails, chunking,
-idempotent IDs and the REST API contract.
+idempotent IDs, BM25 / RRF, MMR diversity, feedback, collaborative and content-based
+recommendations, cold start, the learned ranker and IPW, and the REST API contract.
 
 ## Project layout
 
