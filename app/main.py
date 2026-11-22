@@ -13,11 +13,12 @@ logfire.configure(
 from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Response  # noqa: E402
-from pydantic import BaseModel, Field  # noqa: E402
+from pydantic import BaseModel, Field, field_validator  # noqa: E402
 
 from app.agents import service  # noqa: E402
 from app.agents.graph import rag_agent  # noqa: E402
 from app.guardrails import initialize_rails  # noqa: E402
+from app.services import feedback, recommend  # noqa: E402
 
 
 @asynccontextmanager
@@ -44,6 +45,13 @@ class Source(BaseModel):
     score: float
 
 
+class RelatedDocument(BaseModel):
+    source: str
+    id: str
+    reason: str
+    snippet: str = ""
+
+
 class QueryResponse(BaseModel):
     question: str
     answer: str
@@ -51,6 +59,13 @@ class QueryResponse(BaseModel):
     thought_process: list[str]
     status: str
     sources: list[Source]
+    related_documents: list[RelatedDocument] = []
+    related_questions: list[str] = []
+
+
+class StarterQuestion(BaseModel):
+    question: str
+    reason: str
 
 
 @app.get("/")
@@ -61,6 +76,12 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/starters", response_model=list[StarterQuestion])
+def starters(limit: int = 4):
+    """Questions to show a new user: popular ones from other users, else curated defaults."""
+    return recommend.starter_questions(max(1, min(limit, 10)))
 
 
 @app.get("/graph")
@@ -84,3 +105,33 @@ def query(request: QueryRequest):
             status_code=500,
             detail="Internal error while processing the request. Please try again later.",
         )
+
+
+class FeedbackRequest(BaseModel):
+    thread_id: str = Field(..., min_length=1, max_length=100)
+    question: str = Field(..., min_length=1, max_length=4000)
+    # Citation ids of the passages behind the answer, e.g. ["cronjobs.docx#12"].
+    chunk_ids: list[str] = Field(..., min_length=1, max_length=20)
+    vote: int = Field(..., description="1 for 👍, -1 for 👎")
+
+    @field_validator("vote")
+    @classmethod
+    def _plus_or_minus_one(cls, v: int) -> int:
+        if v not in (1, -1):
+            raise ValueError("vote must be 1 or -1")
+        return v
+
+
+class FeedbackResponse(BaseModel):
+    stored: int
+
+
+@app.post("/feedback", response_model=FeedbackResponse)
+def submit_feedback(request: FeedbackRequest):
+    """👍 (+1) / 👎 (-1) on an answer. Feeds a small, capped boost into future search ranking."""
+    try:
+        stored = feedback.record(request.thread_id, request.question, request.chunk_ids, request.vote)
+    except Exception as e:
+        logfire.exception(f"Saving feedback failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not save feedback.")
+    return FeedbackResponse(stored=stored)

@@ -4,7 +4,7 @@ the FastAPI endpoint and the MCP `ask_assistant` tool.
 """
 
 import uuid
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import logfire
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -12,7 +12,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.agents.graph import rag_agent, record_turn
 from app.agents.state import split_turn
 from app.guardrails import guard
-from app.tools.docs import citation_id
+from app.services import feedback, recommend
+from app.tools.docs import citation_id, cited_ids
 
 
 class SourceOut(TypedDict):
@@ -21,6 +22,7 @@ class SourceOut(TypedDict):
     chunk_index: int | None
     content: str
     score: float
+    features: NotRequired[dict]  # ranking features, logged as training data; not returned by the API
 
 
 class AgentResult(TypedDict):
@@ -30,6 +32,8 @@ class AgentResult(TypedDict):
     thought_process: list[str]
     status: str
     sources: list[SourceOut]
+    related_documents: list[recommend.RelatedDocument]
+    related_questions: list[str]
 
 
 def _describe_call(call: dict) -> str:
@@ -56,6 +60,7 @@ def summarise_turn(messages: list) -> tuple[str, list[str], list[SourceOut]]:
                         "chunk_index": doc.get("chunk_index"),
                         "content": doc["content"],
                         "score": doc["score"],
+                        **({"features": doc["features"]} if doc.get("features") else {}),
                     }
 
     final = next((m for m in reversed(turn) if isinstance(m, AIMessage) and not m.tool_calls), None)
@@ -78,6 +83,8 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
             thought_process=["Guardrails fired", "Tools: skipped"],
             status="Handled by guardrails.",
             sources=[],
+            related_documents=[],
+            related_questions=[],
         )
 
     with logfire.span("Agent run", thread_id=thread_id):
@@ -87,6 +94,17 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
         )
 
     answer, steps, sources = summarise_turn(final["messages"])
+    cited = cited_ids(answer, [s["id"] for s in sources])
+
+    # Recommendations first (so this turn doesn't recommend itself), then log what was shown.
+    with logfire.span("Recommendations"):
+        related_docs = recommend.related_documents(sources, cited, thread_id)
+        related_qs = recommend.related_questions(cited, thread_id, question)
+    try:
+        feedback.log_impressions(thread_id, question, sources, cited)
+    except Exception as e:
+        logfire.warning(f"Could not log impressions: {e}")
+
     return AgentResult(
         question=question,
         answer=answer,
@@ -94,4 +112,6 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
         thought_process=steps,
         status="Response generated.",
         sources=sources,
+        related_documents=related_docs,
+        related_questions=related_qs,
     )

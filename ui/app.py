@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 
 import logfire
@@ -45,6 +46,72 @@ def render_sources(sources: list[dict]) -> None:
             st.caption(src["content"][:1200] + ("…" if len(src["content"]) > 1200 else ""))
 
 
+CITATION_RE = re.compile(r"\[([^\[\]]+#\d+)\]")
+
+
+def voted_chunk_ids(message: dict) -> list[str]:
+    """The passages a vote applies to: the ones the answer cites, else every source shown."""
+    source_ids = [s["id"] for s in message.get("sources", []) if s.get("id")]
+    cited = [cid for cid in CITATION_RE.findall(message["content"]) if cid in source_ids]
+    return list(dict.fromkeys(cited)) or source_ids
+
+
+def send_feedback(key: str, message: dict) -> None:
+    choice = st.session_state.get(key)  # st.feedback("thumbs"): 1 = 👍, 0 = 👎, None = cleared
+    if choice is None:
+        return
+    try:
+        requests.post(
+            f"{BACKEND_URL}/feedback",
+            json={
+                "thread_id": st.session_state.session_id,
+                "question": message["question"],
+                "chunk_ids": voted_chunk_ids(message),
+                "vote": 1 if choice == 1 else -1,
+            },
+            timeout=10,
+        ).raise_for_status()
+        st.toast("Thanks — feedback saved.")
+    except Exception as e:
+        st.toast(f"Couldn't save feedback: {e}")
+
+
+def render_feedback(index: int, message: dict) -> None:
+    if message.get("sources") and message.get("question"):
+        key = f"feedback_{st.session_state.session_id}_{index}"
+        st.feedback("thumbs", key=key, on_change=send_feedback, args=(key, message))
+
+
+def queue_question(question: str) -> None:
+    st.session_state.queued_prompt = question
+
+
+def render_related(index: int, message: dict) -> None:
+    docs, questions = message.get("related_documents", []), message.get("related_questions", [])
+    if docs:
+        st.markdown("**📚 Related documents**")
+        for d in docs:
+            st.caption(f"[{d['id']}] · {d['reason']}" + (f" — {d['snippet'][:120]}…" if d.get("snippet") else ""))
+    if questions:
+        st.markdown("**💬 People who asked this also asked**")
+        for j, q in enumerate(questions):
+            st.button(q, key=f"related_{st.session_state.session_id}_{index}_{j}", on_click=queue_question, args=(q,))
+
+
+def render_starters() -> None:
+    if "starters" not in st.session_state:
+        try:
+            st.session_state.starters = requests.get(f"{BACKEND_URL}/starters", timeout=5).json()
+        except Exception:
+            st.session_state.starters = []
+    if st.session_state.starters:
+        st.markdown("**Try asking:**")
+        cols = st.columns(2)
+        for j, s in enumerate(st.session_state.starters):
+            cols[j % 2].button(s["question"], key=f"starter_{j}", help=s["reason"], on_click=queue_question,
+                               args=(s["question"],), width="stretch")
+
+
 def ask_backend(prompt: str) -> dict:
     response = requests.post(
         f"{BACKEND_URL}/query",
@@ -70,13 +137,21 @@ with st.sidebar:
 # --- MAIN CHAT ---
 st.title("🤖 Enterprise Agentic Assistant")
 
-for message in st.session_state.messages:
+for i, message in enumerate(st.session_state.messages):
     avatar = AI_AVATAR if message["role"] == "assistant" else USER_AVATAR
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
         render_sources(message.get("sources", []))
+        render_feedback(i, message)
+        render_related(i, message)
 
-if prompt := st.chat_input("Ask about your documentation..."):
+if not st.session_state.messages:
+    render_starters()
+
+# A typed question, or one queued by clicking a starter / related question.
+typed = st.chat_input("Ask about your documentation...")
+prompt = typed or st.session_state.pop("queued_prompt", None)
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(prompt)
@@ -104,6 +179,14 @@ if prompt := st.chat_input("Ask about your documentation..."):
         sources = data.get("sources", [])
         st.markdown(answer)
         render_sources(sources)
-        st.session_state.messages.append(
-            {"role": "assistant", "content": answer, "sources": sources}
-        )
+        message = {
+            "role": "assistant",
+            "content": answer,
+            "sources": sources,
+            "question": prompt,
+            "related_documents": data.get("related_documents", []),
+            "related_questions": data.get("related_questions", []),
+        }
+        st.session_state.messages.append(message)
+        render_feedback(len(st.session_state.messages) - 1, message)
+        render_related(len(st.session_state.messages) - 1, message)

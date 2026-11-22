@@ -26,6 +26,10 @@ DATA/noisy_data/*
 
 # Conversation memory (SQLite checkpointer)
 checkpoints.sqlite*
+feedback.sqlite*
 
 # Embedded local Qdrant (QDRANT_PATH)
-qdrant_local/
+qdrant_local*/
+
+# Learned ranker (python -m app.services.ltr train)
+ltr_model.json
