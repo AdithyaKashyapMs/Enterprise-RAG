@@ -1,4 +1,5 @@
 import atexit
+import uuid
 from collections import OrderedDict
 from threading import Lock
 
@@ -8,6 +9,14 @@ from qdrant_client.http import models
 
 from app.config import settings
 from app.services.retrieval.embedding import embed_query, get_embedding_dim
+
+
+# Stable point IDs: the same file + chunk position always maps to the same Qdrant point.
+CHUNK_ID_NAMESPACE = uuid.UUID("6f1c2b8e-3a4d-4e5f-9a6b-7c8d9e0f1a2b")
+
+
+def chunk_id(source: str, index: int) -> str:
+    return str(uuid.uuid5(CHUNK_ID_NAMESPACE, f"{source}::{index}"))
 
 
 class RetrievalError(RuntimeError):
@@ -77,6 +86,7 @@ def _to_doc(point, score: float | None = None) -> dict:
         "source": payload.get("source", "unknown"),
         "chunk_index": payload.get("chunk_index"),
         "score": float(score if score is not None else getattr(point, "score", 0.0) or 0.0),
+        "ingested_at": payload.get("ingested_at"),
     }
 
 
@@ -170,3 +180,51 @@ def read_chunks(source: str, start_chunk: int = 0, num_chunks: int = 3) -> list[
     except Exception as e:
         raise RetrievalError(f"Reading '{source}' failed: {e}") from e
     return sorted((_to_doc(p, score=0.0) for p in points), key=lambda d: d["chunk_index"] or 0)
+
+
+def iter_chunks(batch_size: int = 512):
+    """Yield every chunk in the collection (no vectors) — used to build the BM25 keyword index."""
+    try:
+        client = get_client()
+        _ensure_ready(client, check_dim=False)
+        offset = None
+        while True:
+            points, offset = client.scroll(
+                collection_name=settings.QDRANT_COLLECTION,
+                limit=batch_size,
+                offset=offset,
+                with_payload=["text", "source", "chunk_index", "ingested_at"],
+                with_vectors=False,
+            )
+            for p in points:
+                yield _to_doc(p, score=0.0)
+            if offset is None:
+                break
+    except RetrievalError:
+        raise
+    except Exception as e:
+        raise RetrievalError(f"Reading the collection failed: {e}") from e
+
+
+def similar_chunks(source: str, chunk_index: int, exclude_sources: list[str], limit: int = 10) -> list[dict]:
+    """
+    Nearest neighbours of one stored chunk (Qdrant "search by point id": it reuses the chunk's
+    own stored vector, so no embedding call), restricted to other files.
+    """
+    try:
+        client = get_client()
+        _ensure_ready(client, check_dim=False)
+        response = client.query_points(
+            collection_name=settings.QDRANT_COLLECTION,
+            query=chunk_id(source, chunk_index),
+            query_filter=models.Filter(
+                must_not=[models.FieldCondition(key="source", match=models.MatchAny(any=exclude_sources))]
+            ),
+            limit=limit,
+            with_payload=True,
+        )
+    except RetrievalError:
+        raise
+    except Exception as e:
+        raise RetrievalError(f"Similar-chunk search failed: {e}") from e
+    return [_to_doc(p) for p in response.points]

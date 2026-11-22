@@ -13,7 +13,7 @@ Usage:
 import json
 import os
 import sys
-import uuid
+from datetime import datetime, timezone
 
 import logfire
 from qdrant_client.http import models
@@ -28,19 +28,12 @@ from app.services.retrieval.embedding import (
     get_embedding_dim,
     get_embedding_model_name,
 )
-from app.services.retrieval.qdrant_service import get_client, get_collection_dim
+from app.services.retrieval.qdrant_service import chunk_id, get_client, get_collection_dim
 
 PROCESSED_DATA_DIR = "processed_data"
-CHUNK_ID_NAMESPACE = uuid.UUID("6f1c2b8e-3a4d-4e5f-9a6b-7c8d9e0f1a2b")
-
 # Files that failed in this run, so the CLI can report them and exit non-zero.
 failed_files: list[tuple[str, str]] = []
 already_indexed: set[str] = set()  # filled by --resume
-
-
-def chunk_id(source: str, index: int) -> str:
-    """Stable point ID: the same file + chunk position always maps to the same ID."""
-    return str(uuid.uuid5(CHUNK_ID_NAMESPACE, f"{source}::{index}"))
 
 
 def save_processed_locally(data: dict, source_type: str, filename: str) -> str:
@@ -93,6 +86,7 @@ def process_file(file_path: str, filename: str, source_type: str) -> int:
             with logfire.span("Vectorizing & Indexing"):
                 embeddings = embed_texts(chunks)
                 model_name = get_embedding_model_name()
+                ingested_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 client = get_client()
 
                 # Remove this file's previous chunks (it may now have fewer).
@@ -119,6 +113,8 @@ def process_file(file_path: str, filename: str, source_type: str) -> int:
                             "source_type": source_type,
                             "chunk_index": i,
                             "embedding_model": model_name,
+                            # Lets ranking spot new documents (cold start: exploration boost).
+                            "ingested_at": ingested_at,
                         },
                     )
                     for i, (chunk, vector) in enumerate(zip(chunks, embeddings))
