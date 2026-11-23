@@ -33,3 +33,6 @@ qdrant_local*/
 
 # Learned ranker (python -m app.services.ltr train)
 ltr_model.json
+
+# Daily 10 study app database
+daily10.sqlite*
