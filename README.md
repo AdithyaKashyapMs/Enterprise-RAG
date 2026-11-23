@@ -226,53 +226,16 @@ curl -X POST localhost:8000/query -H 'content-type: application/json' \
 Pass the returned `thread_id` back to continue a conversation. `GET /graph` renders the agent
 graph; `GET /health` is a liveness probe.
 
-## Daily 10: study app (in progress)
+## Related project
 
-Most engineering students study in the last few days before an exam. **Daily 10** spreads the
-syllabus over the whole semester: ten minutes a day, with a reminder, built from the course's
-own notes and past papers. It reuses this project's ingestion, chunking, BM25, JSON-mode LLM
-calls and fallback chain, and runs in the same API (`/study/...`) and UI (extra pages).
-
-**Faculty, once per subject:** upload notes → split into daily topics in syllabus order → upload
-past papers → each exam question is matched to a topic (BM25), giving "asked N times" per
-topic → the LLM writes a summary, key points and 6 multiple-choice questions per topic, each with
-an evidence quote → questions whose quote isn't in the notes are auto-rejected → faculty approve
-the rest. Students only ever see approved questions. Generation is once per subject, shared by
-every student, so LLM cost doesn't grow with the number of students.
-
-**Students, every day (~10 min):** a concept card for one new topic, 3 new questions, up to 2
-spaced-repetition reviews and a related past-paper question.
-- *Coverage plan:* topics needed today = ceil(topics left / days left before a revision window
-  before the exam), at most 2. Recomputed daily, so a missed day spreads over the remaining
-  days instead of doubling tomorrow. The subject most behind gets the day's new topic.
-- *Spaced repetition:* Leitner boxes (1, 2, 4, 8, 16, 32 days); a wrong answer comes back tomorrow.
-- *Reminders:* Telegram at the time each student picks (`python -m app.study.notify listen` to let
-  students link with `/start <code>`, `run-due` from cron every few minutes).
-- *Progress:* coverage per subject, streak, accuracy, weakest topics. "This question is wrong"
-  sends a question back to faculty review.
-
-```bash
-python -m app.study.cli create-subject 21CS53 "Database Management Systems" --dept CSE --sem 5
-python -m app.study.cli add-notes 21CS53 notes/*.pdf
-python -m app.study.cli add-paper 21CS53 papers/dbms_2023.pdf
-python -m app.study.cli generate 21CS53 --limit 5      # in batches: free LLM tiers have daily limits
-python -m app.study.cli review 21CS53                  # or the Faculty page in the UI
-```
-
-**Web app:** Next.js in [`web/`](web/), in the same sticker style as EventSnap, with two logins:
-students (mobile-first, installable PWA) and faculty (email + password accounts that need the
-university invite code; scrypt-hashed passwords, expiring tokens). Faculty upload notes and past
-papers, generate questions and approve them from the browser. See [web/README.md](web/README.md).
-
-Demo data: a sample subject built from the Kubernetes docs and a clearly labelled sample paper
-(`DATA/study_demo/`). Real lecture notes and a pilot with students are the next step.
-Not built yet: college sign-in (students use a short code), push notifications, Postgres
-deployment (the models work with `STUDY_DATABASE_URL`), the faculty class-progress dashboard.
+**[Daily 10](https://github.com/AdithyaKashyapMs/daily10)** started here and is now its own
+repository: a study app that turns college notes and past papers into ten-minute daily sessions,
+reusing this project's chunking, BM25 and JSON-mode LLM techniques.
 
 ## Tests
 
 ```bash
-pytest -q tests     # 98 tests, fully offline (scripted fake LLM, in-memory corpus)
+pytest -q tests     # 85 tests, fully offline (scripted fake LLM, in-memory corpus)
 ```
 
 Covers the tool-calling loop (search → cite, memory turns without tools, multi-tool plans with

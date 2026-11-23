@@ -34,5 +34,7 @@ qdrant_local*/
 # Learned ranker (python -m app.services.ltr train)
 ltr_model.json
 
-# Daily 10 study app database
+
+# Leftovers from Daily 10, which now lives in its own repository
+/web/
 daily10.sqlite*

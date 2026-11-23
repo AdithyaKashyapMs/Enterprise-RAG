@@ -19,7 +19,6 @@ from app.agents import service  # noqa: E402
 from app.agents.graph import rag_agent  # noqa: E402
 from app.guardrails import initialize_rails  # noqa: E402
 from app.services import feedback, recommend  # noqa: E402
-from app.study.api import router as study_router  # noqa: E402
 
 
 @asynccontextmanager
@@ -30,7 +29,6 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Enterprise Agentic RAG API", lifespan=lifespan)
 logfire.instrument_fastapi(app)
-app.include_router(study_router)  # Daily 10 study app: /study/...
 
 
 class QueryRequest(BaseModel):
