@@ -18,6 +18,7 @@ If the model replies with plain text instead (or the budget / degraded paths pro
 `source` records which path produced it.
 """
 
+import json
 import re
 from typing import Literal, TypedDict
 
@@ -72,7 +73,7 @@ class AnswerRecord(TypedDict):
     confidence: str
     follow_up_questions: list[str]
     invalid_citations: list[str]   # cited by the model but never retrieved this turn
-    source: str                    # "structured" | "text"
+    source: str                    # "structured" | "structured_text" (schema as JSON text) | "text"
 
 
 def _strip_invalid(text: str, invalid: set[str]) -> str:
@@ -110,8 +111,31 @@ def validate(args: dict, retrieved_ids: list[str]) -> AnswerRecord:
     )
 
 
+def _json_object(text: str) -> dict | None:
+    """The answer schema written out as JSON text (some models do this instead of calling the tool)."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`").removeprefix("json").strip()
+    if not (stripped.startswith("{") and stripped.endswith("}")):
+        return None
+    try:
+        obj = json.loads(stripped)
+    except ValueError:
+        return None
+    return obj if isinstance(obj, dict) and isinstance(obj.get("answer"), str) else None
+
+
 def from_text(text: str, retrieved_ids: list[str]) -> AnswerRecord:
-    """Best-effort structure for a plain-text answer: citations parsed from the text."""
+    """
+    Structure for a plain-text answer. If the text is the answer schema as JSON (the model wrote
+    the tool arguments as text), validate it like a tool call; otherwise parse citations from it.
+    """
+    obj = _json_object(text)
+    if obj is not None:
+        record = validate(obj, retrieved_ids)
+        if record["source"] == "structured":
+            return {**record, "source": "structured_text"}
+        text = obj["answer"]
     known = set(retrieved_ids)
     claimed = list(dict.fromkeys(_CITATION_RE.findall(text)))
     valid = [c for c in claimed if c in known]

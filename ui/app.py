@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")))
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-REQUEST_TIMEOUT_S = 90
+REQUEST_TIMEOUT_S = 300  # multi-step answers on a rate-limited free LLM tier can take a few minutes
 
 try:
     logfire.configure(
@@ -179,6 +179,10 @@ if prompt:
             with st.status("🔍 Agent is thinking...", expanded=True) as status:
                 try:
                     data = ask_backend(prompt)
+                except requests.exceptions.Timeout:
+                    status.update(label="⏱️ Timed out", state="error")
+                    st.error(f"No answer after {REQUEST_TIMEOUT_S}s. The LLM provider may be rate-limiting; try again in a minute.")
+                    st.stop()
                 except requests.exceptions.ConnectionError:
                     status.update(label="❌ Backend offline", state="error")
                     st.error(f"Could not reach the backend at {BACKEND_URL}. Is uvicorn running?")

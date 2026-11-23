@@ -29,6 +29,16 @@ flowchart LR
 
 ## How it works
 
+**Models.** Groq `openai/gpt-oss-120b` for the agent and `openai/gpt-oss-20b` for fast checks
+(the Llama 3.3 / 3.1 models used earlier were retired by Groq). Reasoning text is switched off,
+so callers get only the answer. Both are overridable with `GROQ_MODEL` / `GROQ_FAST_MODEL`.
+Requests fall back through a model chain (`GROQ_FALLBACK_MODELS`, default `gpt-oss-20b`, then
+`qwen3.8-27b`), each with its own rate limits. On Groq's free tier the main model allows 200k tokens a
+day, and a multi-step question can use 15-20k, so this keeps the assistant answering after the
+limit is hit. If every model is limited, `/query` returns a 503 saying so instead of a generic error.
+When the tool budget runs out, the final answer is requested in JSON mode, because a forced
+`submit_answer` call fails with models that keep trying to search.
+
 **Agent loop (LangGraph).** The LLM has three tools bound and runs in a loop with a `ToolNode`
 until it replies without calling a tool:
 
@@ -53,7 +63,14 @@ the docs with no valid citation is downgraded to low confidence. Plain-text answ
 and fallback paths) are parsed into the same shape, so the API, MCP and UI always see one format.
 
 **Safety rails around the loop**
-- Guardrails before the agent: deterministic jailbreak / topic checks, then NeMo Colang rails.
+- Guardrails before the agent: deterministic jailbreak / topic checks, then NeMo Colang rails
+  that match intents (off-topic, jailbreak, greeting, farewell, capabilities) by **embedding
+  similarity** to example phrases, with no LLM call. NeMo's default asks the LLM to write the intent
+  label; chat-tuned reasoning models such as gpt-oss answer the user instead, which silently
+  disabled every rail. The similarity threshold (0.6) is the highest that never blocked a
+  legitimate follow-up ("what did I just ask you?") in testing; below it, follow-ups start
+  getting blocked. Off-topic questions the guard misses are refused by the agent itself
+  (`answered_from_docs=false`).
 - `MAX_TOOL_ROUNDS` (default 4) caps tool use per question, then forces an answer.
 - Tool errors go back to the model as messages (`handle_tool_errors`) instead of crashing.
 - If the tool-calling request itself fails (e.g. a malformed tool call), the agent falls back to

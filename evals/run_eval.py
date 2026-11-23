@@ -25,7 +25,10 @@ Retrieval metrics, per mode and per difficulty ("direct" / "paraphrased"):
 Agent metrics (--answers; calls the LLM):
   - mention_rate  : answer contains every `must_mention` term
   - citation_rate : answer cites a passage id like [cronjobs.docx#12]
+  - cites_expected_source_rate : a verified citation comes from the file the answer lives in
   - avg_tool_calls
+  - schema_path   : how the structured answer was produced (tool call / JSON text / plain text)
+  - invalid_citations_removed, confidence distribution
 
 Usage:
     python -m evals.run_eval --label distractors          # writes evals/results/distractors.json
@@ -113,13 +116,19 @@ def evaluate(with_answers: bool) -> dict:
 
             result = service.ask(q)
             answer = result["answer"]
+            st = result["structured"]
             row = {
                 "mention": all(t.lower() in answer.lower() for t in case["must_mention"]),
                 "cited": bool(re.search(r"\[[^\]]+#\d+\]", answer)),
+                "cites_expected": any(c.split("#")[0] in expected for c in st["citations"]),
                 "tool_calls": sum(s.startswith("Tool:") for s in result["thought_process"]),
+                "schema": st["source"],
+                "invalid_citations": len(st["invalid_citations"]),
+                "confidence": st["confidence"],
             }
             agent_rows.append(row)
-            line += f"  mention={'✓' if row['mention'] else '✗'} cited={'✓' if row['cited'] else '✗'} tools={row['tool_calls']}"
+            line += (f"  mention={'✓' if row['mention'] else '✗'} cites_expected={'✓' if row['cites_expected'] else '✗'} "
+                     f"tools={row['tool_calls']} schema={row['schema']} conf={row['confidence']}")
         print(line)
 
     report = {
@@ -135,10 +144,17 @@ def evaluate(with_answers: bool) -> dict:
             report["metrics"][mode][diff] = _aggregate([c[mode] for c in per_case if c["difficulty"] == diff])
     if agent_rows:
         n = len(agent_rows)
+        from collections import Counter
+
         report["agent"] = {
             "mention_rate": round(sum(r["mention"] for r in agent_rows) / n, 3),
             "citation_rate": round(sum(r["cited"] for r in agent_rows) / n, 3),
+            "cites_expected_source_rate": round(sum(r["cites_expected"] for r in agent_rows) / n, 3),
             "avg_tool_calls": round(sum(r["tool_calls"] for r in agent_rows) / n, 2),
+            "schema_path": dict(Counter(r["schema"] for r in agent_rows)),
+            "invalid_citations_removed": sum(r["invalid_citations"] for r in agent_rows),
+            "confidence": dict(Counter(r["confidence"] for r in agent_rows)),
+            "model": __import__("app.config", fromlist=["settings"]).settings.GROQ_MODEL,
         }
     report["cases"] = per_case
     return report

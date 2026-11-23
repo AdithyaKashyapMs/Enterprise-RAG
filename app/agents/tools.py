@@ -51,7 +51,7 @@ def read_document(source: str, start_chunk: int = 0, num_chunks: int = 3) -> tup
     Args:
         source: Exact file name, e.g. "cronjobs.docx".
         start_chunk: Index of the first chunk to read.
-        num_chunks: How many consecutive chunks to read (1-6).
+        num_chunks: How many consecutive chunks to read (1-4). Usually 2-3.
     """
     try:
         chunks = docs.read_document(source, start_chunk=start_chunk, num_chunks=num_chunks)

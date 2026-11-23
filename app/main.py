@@ -110,6 +110,12 @@ def query(request: QueryRequest):
     try:
         return service.ask(request.q, request.thread_id)
     except Exception as e:
+        if getattr(e, "status_code", None) == 429:
+            logfire.warning(f"LLM rate limit on every model: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="The language model's rate limit is used up for now. Please try again in a few minutes.",
+            )
         logfire.exception(f"Backend execution failed: {e}")
         raise HTTPException(
             status_code=500,

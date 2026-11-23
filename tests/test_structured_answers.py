@@ -131,3 +131,34 @@ def test_api_returns_structured_fields(wired):
     body = TestClient(main.app).post("/query", json={"q": "How do I stop overlapping CronJob runs?"}).json()
     assert body["structured"]["confidence"] == "medium"
     assert body["structured"]["citations"] == ["cronjobs.docx#3"]
+
+
+def test_budget_path_forces_structured_answer(wired, monkeypatch):
+    class AlwaysSearches(SubmittingLLM):
+        def invoke(self, messages):
+            return AIMessage(content="", tool_calls=[{"name": "search_docs", "args": {"query": "again"}, "id": f"s{next(_ids)}"}])
+
+    class JsonMode:  # JSON mode returns the schema as a JSON string, no tool call
+        def invoke(self, messages):
+            assert "JSON" in messages[-1].content
+            return AIMessage(content='{"answer": "Forbid [cronjobs.docx#3].", "citations": ["cronjobs.docx#3"], '
+                                     '"answered_from_docs": true, "confidence": "medium"}')
+
+    wired(AlwaysSearches({}))
+    monkeypatch.setattr(agent_mod, "_final_llm", JsonMode())
+    monkeypatch.setattr(agent_mod.settings, "MAX_TOOL_ROUNDS", 2)
+    result = service.ask("How do I stop overlapping CronJob runs?")
+    assert result["structured"]["source"] == "structured_text"
+    assert result["answer"] == "Forbid [cronjobs.docx#3]."
+    assert result["structured"]["citations"] == ["cronjobs.docx#3"]
+    assert sum(s.startswith("Tool: search_docs") for s in result["thought_process"]) == 2
+
+
+def test_schema_written_as_json_text_is_parsed():
+    text = '{"answer": "Use Forbid [a#1].", "citations": ["a#1"], "answered_from_docs": true, "confidence": "high"}'
+    rec = from_text(text, ["a#1"])
+    assert rec["source"] == "structured_text" and rec["answer"] == "Use Forbid [a#1]." and rec["citations"] == ["a#1"]
+    fenced = from_text("```json\n" + text + "\n```", ["a#1"])
+    assert fenced["source"] == "structured_text"
+    partial = from_text('{"answer": "Sorry, I can only help with the docs."}', [])
+    assert partial["source"] == "text" and partial["answer"] == "Sorry, I can only help with the docs."

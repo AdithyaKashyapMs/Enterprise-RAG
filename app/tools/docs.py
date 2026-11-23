@@ -25,7 +25,7 @@ from app.services.retrieval.ranking_service import rerank_documents
 
 SEARCH_CANDIDATES = 15
 MAX_TOP_K = 10
-MAX_READ_CHUNKS = 6
+MAX_READ_CHUNKS = 4  # each chunk is ~1,200 chars; bigger reads blow the token budget
 
 _CITATION_RE = re.compile(r"\[([^\[\]]+#\d+)\]")
 

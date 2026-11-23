@@ -139,3 +139,28 @@ def test_api_returns_500_on_failure(monkeypatch):
 
     monkeypatch.setattr(main.service, "ask", boom)
     assert TestClient(main.app).post("/query", json={"q": "pods?"}).status_code == 500
+
+
+def test_api_returns_503_when_llm_rate_limited(monkeypatch):
+    from app import main
+
+    class RateLimited(Exception):
+        status_code = 429
+
+    def limited(q, t=None):
+        raise RateLimited("tokens per day")
+
+    monkeypatch.setattr(main.service, "ask", limited)
+    r = TestClient(main.app).post("/query", json={"q": "pods?"})
+    assert r.status_code == 503 and "rate limit" in r.json()["detail"]
+
+
+def test_model_fallback_chain_order(monkeypatch):
+    from app.gateway import client
+
+    monkeypatch.setattr(client.settings, "GROQ_API_KEY", "k1")
+    monkeypatch.setattr(client.settings, "GROQ_FALLBACK_API_KEY", None)
+    monkeypatch.setattr(client.settings, "GROQ_MODEL", "big")
+    monkeypatch.setattr(client.settings, "GROQ_FALLBACK_MODELS", ["small", "big", "other"])
+    monkeypatch.setattr(client.settings, "PORTKEY_API_KEY", None)
+    assert [m.model_name for m in client._base_models("agent", 0.0)] == ["big", "small", "other"]
