@@ -4,36 +4,47 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/today", label: "Today", icon: "M4 6h16M4 12h10M4 18h6" },
-  { href: "/progress", label: "Progress", icon: "M5 19V11M12 19V5M19 19v-6" },
-  { href: "/settings", label: "Me", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" },
+  { href: "/today", label: "Today", emoji: "📖" },
+  { href: "/progress", label: "Progress", emoji: "🔥" },
+  { href: "/settings", label: "Me", emoji: "🙂" },
 ];
 
+/** Student tab bar: sticker pills, fixed at the bottom of the phone screen. */
 export function BottomNav() {
   const path = usePathname();
   return (
-    <nav className="safe-bottom sticky bottom-0 z-10 border-t border-line bg-paper/95 backdrop-blur">
-      <ul className="grid grid-cols-3">
+    <nav className="safe-bottom sticky bottom-0 z-30 border-t-[2.5px] border-ink bg-white px-3 pt-2.5">
+      <ul className="mx-auto grid max-w-md grid-cols-3 gap-2">
         {TABS.map((t) => {
           const active = path?.startsWith(t.href);
           return (
             <li key={t.href}>
-              <Link
-                href={t.href}
-                className={`flex flex-col items-center gap-1 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-accent ${
-                  active ? "text-accent" : "text-muted"
-                }`}
-                aria-current={active ? "page" : undefined}
-              >
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                  <path d={t.icon} />
-                </svg>
-                {t.label}
+              <Link href={t.href} aria-current={active ? "page" : undefined} className={`btn btn-sm btn-block ${active ? "btn-primary" : "btn-white"}`}>
+                <span aria-hidden>{t.emoji}</span> {t.label}
               </Link>
             </li>
           );
         })}
       </ul>
     </nav>
+  );
+}
+
+/** Page frame for student screens: phone-width column above the tab bar. */
+export function StudentFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-[calc(100dvh-60px)] flex-col">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 py-6">{children}</div>
+      <BottomNav />
+    </div>
+  );
+}
+
+export function Loading({ label }: { label: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 font-semibold text-ink-soft" role="status">
+      <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-ink border-t-sun" />
+      {label}
+    </div>
   );
 }

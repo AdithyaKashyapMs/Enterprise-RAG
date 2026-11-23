@@ -211,3 +211,34 @@ def test_api_student_flow_and_admin_key(monkeypatch):
     monkeypatch.setenv("STUDY_ADMIN_KEY", "secret")
     assert client.get("/study/subjects/CS501/questions").status_code == 401
     assert client.get("/study/subjects/CS501/questions", headers={"X-Admin-Key": "secret"}).status_code == 200
+
+
+def test_faculty_accounts_and_protected_endpoints(monkeypatch):
+    from app import main
+    from app.study import auth
+
+    client = TestClient(main.app)
+    monkeypatch.setenv("STUDY_ADMIN_KEY", "uni-invite")
+    body = {"name": "Dr. Rao", "email": "Rao@UVCE.edu", "password": "longpassword1", "department": "CSE"}
+
+    assert client.post("/study/faculty/register", json=body).status_code == 403                       # no invite
+    assert client.post("/study/faculty/register", json=body | {"invite_code": "nope"}).status_code == 403
+    r = client.post("/study/faculty/register", json=body | {"invite_code": "uni-invite"})
+    assert r.status_code == 200 and r.json()["faculty"]["email"] == "rao@uvce.edu"
+    assert client.post("/study/faculty/register", json=body | {"invite_code": "uni-invite"}).status_code == 409
+
+    assert client.post("/study/faculty/login", json={"email": "rao@uvce.edu", "password": "wrong-pass"}).status_code == 401
+    token = client.post("/study/faculty/login", json={"email": "RAO@uvce.edu", "password": "longpassword1"}).json()["token"]
+    bearer = {"Authorization": f"Bearer {token}"}
+    assert client.get("/study/faculty/me", headers=bearer).json()["name"] == "Dr. Rao"
+
+    # Faculty endpoints: open to a valid token or the key, closed otherwise.
+    assert client.post("/study/subjects", json={"code": "CS502", "name": "DBMS"}).status_code == 401
+    assert client.post("/study/subjects", json={"code": "CS502", "name": "DBMS"}, headers=bearer).status_code == 200
+    assert client.get("/study/subjects/CS502/questions", headers={"Authorization": "Bearer forged"}).status_code == 401
+    client.post("/study/faculty/logout", headers=bearer)
+    assert client.get("/study/subjects/CS502/questions", headers=bearer).status_code == 401           # logged out
+
+    stored = auth.hash_password("longpassword1")
+    assert stored.startswith("scrypt$") and "longpassword1" not in stored
+    assert auth.verify_password("longpassword1", stored) and not auth.verify_password("other", stored)

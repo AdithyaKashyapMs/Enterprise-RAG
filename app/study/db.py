@@ -162,6 +162,30 @@ class Review(Base):
     last_answered_on: Mapped[date | None] = mapped_column(Date)
 
 
+class Faculty(Base):
+    """A university staff account: uploads subjects and approves questions."""
+
+    __tablename__ = "faculty"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(200), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(300))
+    department: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class FacultyToken(Base):
+    """A login session. Only a hash of the token is stored, so a database leak can't be replayed."""
+
+    __tablename__ = "faculty_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    faculty_id: Mapped[int] = mapped_column(ForeignKey("faculty.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class DailySession(Base):
     """The session built for a student on a day: fixed once built, so reloading shows the same one."""
 

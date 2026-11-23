@@ -6,6 +6,7 @@ require the X-Admin-Key header when STUDY_ADMIN_KEY is set. Student endpoints us
 student's code; real sign-in (college email) is the next step before a wider rollout.
 """
 
+import hmac
 import os
 import tempfile
 from datetime import date
@@ -13,22 +14,92 @@ from datetime import date
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from app.study import content, service
+from app.study import auth, content, service
 
 router = APIRouter(prefix="/study", tags=["Daily 10"])
 
 
-def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
-    expected = os.getenv("STUDY_ADMIN_KEY")
-    if expected and x_admin_key != expected:
-        raise HTTPException(status_code=401, detail="Faculty endpoint: send a valid X-Admin-Key header.")
+def require_admin(
+    authorization: str | None = Header(default=None),
+    x_admin_key: str | None = Header(default=None),
+) -> None:
+    """
+    Faculty-only endpoints accept either a faculty login token (Authorization: Bearer ...)
+    or the university key (X-Admin-Key, for scripts and the CLI). On a fresh install with no
+    key set and no faculty accounts yet, they are open so the first setup can happen.
+    """
+    key = auth.invite_code()
+    if key and x_admin_key and hmac.compare_digest(x_admin_key, key):
+        return
+    if authorization and authorization.lower().startswith("bearer "):
+        if auth.faculty_for_token(authorization[7:].strip()):
+            return
+        raise HTTPException(status_code=401, detail="Your session has expired. Please log in again.")
+    if not key and not auth.any_faculty():
+        return
+    raise HTTPException(status_code=401, detail="Faculty only: please log in.")
 
 
 def _not_found(e: Exception):
     raise HTTPException(status_code=404, detail=str(e))
 
 
-# --- Faculty ---------------------------------------------------------------------------------
+# --- Faculty accounts ------------------------------------------------------------------------
+
+class FacultyRegisterIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    email: str = Field(..., pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
+    password: str = Field(..., min_length=8, max_length=200)
+    department: str = ""
+    invite_code: str | None = None
+
+
+class FacultyLoginIn(BaseModel):
+    email: str
+    password: str
+
+
+def _faculty_out(f) -> dict:
+    return {"name": f.name, "email": f.email, "department": f.department}
+
+
+@router.post("/faculty/register")
+def faculty_register(body: FacultyRegisterIn):
+    try:
+        auth.register(body.name, body.email, body.password, body.invite_code, body.department)
+        token, f = auth.login(body.email, body.password)
+    except auth.AuthError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"token": token, "faculty": _faculty_out(f)}
+
+
+@router.post("/faculty/login")
+def faculty_login(body: FacultyLoginIn):
+    try:
+        token, f = auth.login(body.email, body.password)
+    except auth.AuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    return {"token": token, "faculty": _faculty_out(f)}
+
+
+@router.get("/faculty/me")
+def faculty_me(authorization: str | None = Header(default=None)):
+    f = auth.faculty_for_token(authorization[7:].strip()) if authorization and authorization.lower().startswith("bearer ") else None
+    if f is None:
+        raise HTTPException(status_code=401, detail="Not logged in.")
+    return _faculty_out(f)
+
+
+@router.post("/faculty/logout")
+def faculty_logout(authorization: str | None = Header(default=None)):
+    if authorization and authorization.lower().startswith("bearer "):
+        auth.logout(authorization[7:].strip())
+    return {"ok": True}
+
+
+# --- Faculty: content ------------------------------------------------------------------------
 
 class SubjectIn(BaseModel):
     code: str = Field(..., min_length=2, max_length=32)

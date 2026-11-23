@@ -1,7 +1,7 @@
 // Daily 10 service worker: lets the app install and open offline (the app shell only).
 // API calls always go to the network: study data must be fresh, never cached.
-const CACHE = "daily10-v1";
-const SHELL = ["/today", "/progress", "/settings", "/login", "/manifest.webmanifest", "/icons/icon-192.png"];
+const CACHE = "daily10-v2";
+const SHELL = ["/", "/today", "/progress", "/settings", "/auth/student", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -76,13 +76,39 @@ export class ApiError extends Error {
   }
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+export type FacultyInfo = { name: string; email: string; department: string };
+export type TopicRow = {
+  id: number;
+  position: number;
+  title: string;
+  source: string;
+  exam_weight: number;
+  questions: Partial<Record<"draft" | "approved" | "rejected" | "auto_rejected", number>>;
+};
+export type ReviewQuestion = {
+  id: number;
+  topic: string;
+  prompt: string;
+  options: string[];
+  answer_index: number;
+  explanation: string;
+  evidence: string;
+  status: string;
+  status_reason: string;
+  reports: number;
+};
+export type GenerateStats = { topics: number; draft: number; auto_rejected: number; failed_topics: number };
+
+async function call<T>(method: string, path: string, body?: unknown, token?: string): Promise<T> {
   let res: Response;
+  const headers: Record<string, string> = {};
+  if (body && !(body instanceof FormData)) headers["content-type"] = "application/json";
+  if (token) headers["authorization"] = `Bearer ${token}`;
   try {
     res = await fetch(`/api/study${path}`, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+      headers,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
       cache: "no-store",
     });
   } catch {
@@ -112,4 +138,31 @@ export const api = {
     call<AnswerResult>("POST", `/students/${code}/answers`, { question_id, chosen_index }),
   report: (question_id: number) => call("POST", `/questions/${question_id}/report`),
   progress: (code: string) => call<Progress>("GET", `/students/${code}/progress`),
+
+  // Faculty
+  facultyRegister: (b: { name: string; email: string; password: string; department: string; invite_code: string }) =>
+    call<{ token: string; faculty: FacultyInfo }>("POST", "/faculty/register", b),
+  facultyLogin: (email: string, password: string) =>
+    call<{ token: string; faculty: FacultyInfo }>("POST", "/faculty/login", { email, password }),
+  facultyLogout: (token: string) => call("POST", "/faculty/logout", undefined, token),
+  createSubject: (t: string, b: { code: string; name: string; department: string; semester: number }) =>
+    call<{ code: string; name: string }>("POST", "/subjects", b, t),
+  uploadNotes: (t: string, code: string, files: File[]) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+    return call<{ topics_added: number }>("POST", `/subjects/${code}/notes`, fd, t);
+  },
+  uploadPaper: (t: string, code: string, file: File, year?: number) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (year) fd.append("year", String(year));
+    return call<{ questions_found: number }>("POST", `/subjects/${code}/past-papers`, fd, t);
+  },
+  generate: (t: string, code: string, limit: number) =>
+    call<GenerateStats>("POST", `/subjects/${code}/generate?limit=${limit}`, undefined, t),
+  topics: (code: string) => call<TopicRow[]>("GET", `/subjects/${code}/topics`),
+  questions: (t: string, code: string, status?: string) =>
+    call<ReviewQuestion[]>("GET", `/subjects/${code}/questions${status ? `?status=${status}` : ""}`, undefined, t),
+  setStatus: (t: string, id: number, status: "approved" | "rejected") =>
+    call("POST", `/questions/${id}/status`, { status }, t),
 };

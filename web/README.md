@@ -1,11 +1,23 @@
-# Daily 10: mobile web app (Next.js)
+# Daily 10: web app (Next.js)
 
-The student app for Daily 10: a mobile-first, installable web app (PWA). Students open it in
-the phone browser and tap **Add to Home Screen**; it then opens full-screen with its own icon.
+Same look as EventSnap (the AI Event Photo Discovery Platform): sticker cards and buttons,
+flat colour blocks, Baloo 2 + Nunito, and the Snappy mascot with study poses.
 
-Screens: **Today** (concept card → one question at a time with instant feedback → past exam
-question), **Progress** (streak, accuracy, syllabus covered per subject, topics to practise),
-**Me** (subjects and exam dates, reminder time, Telegram link, sign-in code).
+**Two logins**
+- **Students** (`/auth/student`): sign up with a name and reminder time, or log in with their
+  6-character code. Mobile-first and installable (PWA): open in the phone browser and tap
+  **Add to Home Screen**.
+- **Faculty / university** (`/auth/faculty`): email + password accounts. Creating one needs
+  the university invite code (`STUDY_ADMIN_KEY` on the server); passwords are scrypt-hashed and
+  logins are expiring tokens.
+
+**Student screens:** Today (concept card → one question at a time with instant feedback and
+the quote from the notes → past exam question), Progress (streak, accuracy, syllabus covered,
+topics to practise), Me (subjects and exam dates, reminder time, Telegram link, code).
+
+**Faculty screens:** subjects dashboard and new subject; per subject, Topics (with how often each
+was asked in past papers), Upload & generate (drag-and-drop notes and past papers, generate
+summaries and questions in batches) and Review (approve / reject, with the quote from the notes).
 
 ```bash
 # 1. Backend (repo root)
@@ -25,4 +37,4 @@ Installing as an app (service worker, full-screen) needs HTTPS, so on a phone it
 deployed (e.g. Vercel for this app plus any host for the API) or through a tunnel such as
 `cloudflared tunnel --url http://localhost:3000`. Over plain Wi-Fi it runs as a normal web page.
 
-Faculty tools are still the Streamlit page (`streamlit run ui/app.py` → Faculty).
+

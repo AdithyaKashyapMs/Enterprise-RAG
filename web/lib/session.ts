@@ -3,30 +3,43 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-// The student's code is their sign-in for now (college email sign-in is a later step).
-const KEY = "daily10.code";
+// Two kinds of sign-in, kept apart:
+//   students: a 6-character code (college email sign-in is a later step)
+//   faculty:  an email/password login token from /study/faculty/login
+const STUDENT = "daily10.code";
+const FACULTY = "daily10.faculty";
 
-export function getCode(): string | null {
+function read(key: string): string | null {
   try {
-    return localStorage.getItem(KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
-
-export function setCode(code: string) {
+function write(key: string, value: string | null) {
   try {
-    localStorage.setItem(KEY, code.toUpperCase());
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
   } catch {}
 }
 
-export function clearCode() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {}
-}
+export const getCode = () => read(STUDENT);
+export const setCode = (code: string) => write(STUDENT, code.toUpperCase());
+export const clearCode = () => write(STUDENT, null);
 
-/** The signed-in student's code; sends the user to /login if there isn't one. */
+export type FacultySession = { token: string; name: string; email: string; department: string };
+export function getFaculty(): FacultySession | null {
+  const raw = read(FACULTY);
+  try {
+    return raw ? (JSON.parse(raw) as FacultySession) : null;
+  } catch {
+    return null;
+  }
+}
+export const setFaculty = (s: FacultySession) => write(FACULTY, JSON.stringify(s));
+export const clearFaculty = () => write(FACULTY, null);
+
+/** The signed-in student's code; sends the user to the student login if there isn't one. */
 export function useStudentCode(): string | null {
   const router = useRouter();
   const [code, setState] = useState<string | null>(null);
@@ -35,8 +48,20 @@ export function useStudentCode(): string | null {
     const fromLink = new URLSearchParams(window.location.search).get("code");
     if (fromLink && /^[A-Za-z0-9]{6}$/.test(fromLink)) setCode(fromLink);
     const c = getCode();
-    if (!c) router.replace("/login");
+    if (!c) router.replace("/auth/student");
     else setState(c);
   }, [router]);
   return code;
+}
+
+/** The signed-in faculty member; sends the user to the faculty login if there isn't one. */
+export function useFaculty(): FacultySession | null {
+  const router = useRouter();
+  const [f, setState] = useState<FacultySession | null>(null);
+  useEffect(() => {
+    const s = getFaculty();
+    if (!s) router.replace("/auth/faculty");
+    else setState(s);
+  }, [router]);
+  return f;
 }
