@@ -3,7 +3,22 @@
 # off-topic + jailbreak rails stacked with dialog rails (greeting/farewell/capabilities).
 
 
+# Minimum cosine similarity to an example phrase for an intent to match (embeddings_only mode).
+SIMILARITY_THRESHOLD = 0.6  # highest value with zero false blocks on follow-ups; see README
+PASS_TOKEN = "__PASS_TO_AGENT__"
+
 COLANG_CONTENT = """
+define user pass to agent
+  "how do I configure this"
+
+define bot pass to agent
+  "__PASS_TO_AGENT__"
+
+define flow pass to agent
+  user pass to agent
+  bot pass to agent
+
+
 define user ask off topic
   "tell me a joke"
   "what is the capital of france"
@@ -97,7 +112,19 @@ define flow farewell
   bot express farewell
 """
 
-YAML_CONTENT = """
+YAML_CONTENT_TEMPLATE = """
+# Intents are matched by embedding similarity to the example phrases above, not by asking
+# the LLM to write the intent label. Chat-tuned and reasoning models (e.g. gpt-oss) answer
+# the user instead of completing NeMo's few-shot pattern, which silently disabled every
+# dialog rail. Embedding matching is also faster and free. Messages that match no intent
+# closely enough fall back to "pass to agent", which has a canned no-op reply (no LLM call).
+rails:
+  dialog:
+    user_messages:
+      embeddings_only: true
+      embeddings_only_similarity_threshold: {threshold}
+      embeddings_only_fallback_intent: "pass to agent"
+
 instructions:
   - type: general
     content: |
@@ -118,3 +145,6 @@ RAIL_INDICATORS = [
     "Goodbye! Feel free to return whenever you have more enterprise IT questions",
     "I'm an Enterprise AI Assistant with deep expertise in",
 ]
+
+
+YAML_CONTENT = YAML_CONTENT_TEMPLATE.replace("{threshold}", str(SIMILARITY_THRESHOLD))

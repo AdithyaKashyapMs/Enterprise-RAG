@@ -56,7 +56,28 @@ def _base_models(feature: str, temperature: float) -> list[BaseChatModel]:
     keys = [k for k in (settings.GROQ_API_KEY, settings.GROQ_FALLBACK_API_KEY) if k]
     if not keys:
         raise RuntimeError("No LLM configured: set GROQ_API_KEY (or Portkey keys).")
-    return [ChatGroq(api_key=k, model=model, temperature=temperature) for k in keys]
+    # Every key for the preferred model first, then every key for each fallback model.
+    chain = list(dict.fromkeys([model, *settings.GROQ_FALLBACK_MODELS]))
+    return [
+        ChatGroq(api_key=k, model=m, temperature=temperature, max_retries=1, **_reasoning_off(m))
+        for m in chain
+        for k in keys
+    ]
+
+
+def _reasoning_off(model: str) -> dict:
+    """
+    Reasoning models (gpt-oss, Qwen, DeepSeek-R1) can put their chain of thought ("<think>...")
+    into the reply. Callers here need only the answer: NeMo Guardrails, for one, expects a
+    short intent label and silently stops matching its rails when the reply starts with
+    reasoning. Ask Groq to leave it out.
+    """
+    name = model.lower()
+    if "gpt-oss" in name:
+        return {"model_kwargs": {"include_reasoning": False}}
+    if any(k in name for k in ("qwen", "deepseek")):
+        return {"reasoning_format": "hidden"}
+    return {}
 
 
 def get_langchain_llm(feature: str = "agent", temperature: float = 0.0, key_fallback: bool = True):
@@ -70,7 +91,26 @@ def get_langchain_llm(feature: str = "agent", temperature: float = 0.0, key_fall
     return models[0].with_fallbacks(models[1:])
 
 
-def get_tool_llm(tools: Sequence[BaseTool | dict], feature: str = "agent", temperature: float = 0.0) -> Runnable:
-    """A chat model with `tools` (LangChain tools or OpenAI-format tool schemas) bound, falling back across keys/providers."""
-    bound = [m.bind_tools(list(tools)) for m in _base_models(feature, temperature)]
+def get_tool_llm(
+    tools: Sequence[BaseTool | dict],
+    feature: str = "agent",
+    temperature: float = 0.0,
+    tool_choice: str | None = None,
+) -> Runnable:
+    """
+    A chat model with `tools` (LangChain tools or OpenAI-format tool schemas) bound, falling
+    back across keys/providers. `tool_choice` names a tool the model must call.
+    """
+    kwargs = {"tool_choice": tool_choice} if tool_choice else {}
+    bound = [m.bind_tools(list(tools), **kwargs) for m in _base_models(feature, temperature)]
+    return bound[0] if len(bound) == 1 else bound[0].with_fallbacks(bound[1:])
+
+
+def get_json_llm(feature: str = "agent", temperature: float = 0.0) -> Runnable:
+    """
+    A chat model in JSON mode: the provider guarantees the reply is one JSON object.
+    Used where a tool call can't be relied on (e.g. a model that keeps trying other tools).
+    The prompt must mention JSON and describe the keys.
+    """
+    bound = [m.bind(response_format={"type": "json_object"}) for m in _base_models(feature, temperature)]
     return bound[0] if len(bound) == 1 else bound[0].with_fallbacks(bound[1:])

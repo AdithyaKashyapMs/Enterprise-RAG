@@ -39,8 +39,15 @@ class Settings:
     # --- REASONING ENGINE (GROQ) ---
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     GROQ_FALLBACK_API_KEY = os.getenv("GROQ_FALLBACK_API_KEY")
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    GROQ_FAST_MODEL = os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    GROQ_FAST_MODEL = os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-20b")
+    # Tried in order when the main model fails, e.g. its free-tier daily token limit is used
+    # up. Each Groq model has its own rate limits, so this keeps the assistant answering.
+    GROQ_FALLBACK_MODELS = [
+        m.strip()
+        for m in os.getenv("GROQ_FALLBACK_MODELS", "openai/gpt-oss-20b,qwen/qwen3.8-27b").split(",")
+        if m.strip()
+    ]
 
     # --- LLM GATEWAY (PORTKEY, optional) ---
     PORTKEY_API_KEY = os.getenv("PORTKEY_API_KEY")
