@@ -389,3 +389,12 @@ def list_subjects() -> list[dict]:
                          .order_by(Subject.semester, Subject.code)).all()
         return [{"code": sub.code, "name": sub.name, "department": sub.department, "semester": sub.semester,
                  "topics": n} for sub, n in rows]
+
+
+def student_profile(student_code: str) -> dict:
+    student = get_student(student_code)
+    with db.session() as s:
+        enrolled = [{"code": e.subject.code, "name": e.subject.name, "exam_date": e.exam_date.isoformat()}
+                    for e in s.scalars(select(Enrollment).where(Enrollment.student_id == student.id))]
+    return {"code": student.code, "name": student.name, "notify_time": student.notify_time,
+            "telegram_linked": bool(student.telegram_chat_id), "subjects": enrolled}

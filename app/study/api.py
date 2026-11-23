@@ -162,6 +162,14 @@ class PrefsIn(BaseModel):
     notify_time: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
+@router.get("/students/{code}")
+def profile(code: str):
+    try:
+        return service.student_profile(code)
+    except service.NotFound as e:
+        _not_found(e)
+
+
 @router.patch("/students/{code}")
 def preferences(code: str, body: PrefsIn):
     try:

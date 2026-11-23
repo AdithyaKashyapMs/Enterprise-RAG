@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Daily 10 palette: calm ink and paper for reading, one teal accent for actions,
+   amber reserved for the streak. Light and dark follow the phone's setting. */
+@theme {
+  --color-paper: #f6f7f4;
+  --color-card: #ffffff;
+  --color-ink: #17201d;
+  --color-muted: #5d6a65;
+  --color-line: #e2e6e1;
+  --color-accent: #0e7a6a;
+  --color-accent-soft: #e2f2ee;
+  --color-streak: #c77b12;
+  --color-good: #1f8a4c;
+  --color-good-soft: #e5f4ea;
+  --color-bad: #c2412d;
+  --color-bad-soft: #fbe9e5;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #0f1513;
+    --color-card: #17201d;
+    --color-ink: #e8eeeb;
+    --color-muted: #9aa8a2;
+    --color-line: #26312d;
+    --color-accent: #3cc2ab;
+    --color-accent-soft: #14302a;
+    --color-streak: #f0a640;
+    --color-good: #4fd18a;
+    --color-good-soft: #133022;
+    --color-bad: #f07a63;
+    --color-bad-soft: #3a1c16;
+  }
+}
+
+html,
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Keep content clear of the notch and the home indicator when installed as an app. */
+.safe-top {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+.safe-bottom {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

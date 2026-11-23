@@ -202,6 +202,10 @@ def test_api_student_flow_and_admin_key(monkeypatch):
     r = client.post(f"/study/students/{code}/answers", json={"question_id": qid, "chosen_index": 0}).json()
     assert r["correct"] and r["evidence"]
     assert client.get("/study/students/NOPE/today").status_code == 404
+    me = client.get(f"/study/students/{code}").json()
+    assert me["notify_time"] == "07:30" and me["subjects"][0]["code"] == "CS501" and not me["telegram_linked"]
+    assert client.patch(f"/study/students/{code}", json={"notify_time": "21:15"}).status_code == 200
+    assert client.get(f"/study/students/{code}").json()["notify_time"] == "21:15"
     assert client.post("/study/students", json={"name": "X", "notify_time": "25:00"}).status_code == 422
 
     monkeypatch.setenv("STUDY_ADMIN_KEY", "secret")

@@ -259,6 +259,9 @@ python -m app.study.cli generate 21CS53 --limit 5      # in batches: free LLM ti
 python -m app.study.cli review 21CS53                  # or the Faculty page in the UI
 ```
 
+**Student app:** a mobile-first Next.js PWA in [`web/`](web/) (installable on phones; see
+[web/README.md](web/README.md)). Faculty tools are a Streamlit page for now.
+
 Demo data: a sample subject built from the Kubernetes docs and a clearly labelled sample paper
 (`DATA/study_demo/`). Real lecture notes and a pilot with students are the next step.
 Not built yet: college sign-in (students use a short code), push notifications, Postgres
