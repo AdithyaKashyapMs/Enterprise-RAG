@@ -86,6 +86,9 @@ class DocumentSlice(BaseModel):
 class Answer(BaseModel):
     answer: str
     thread_id: str = Field(description="Pass back to continue the same conversation")
+    confidence: str = Field(description="high | medium | low")
+    citations: list[str] = Field(description="Passage ids the answer relies on, verified as retrieved")
+    follow_up_questions: list[str]
     steps: list[str]
     sources: list[Passage]
 
@@ -153,6 +156,9 @@ async def ask_assistant(question: str, thread_id: str | None = None) -> Answer:
     return Answer(
         answer=result["answer"],
         thread_id=result["thread_id"],
+        confidence=result["structured"]["confidence"],
+        citations=result["structured"]["citations"],
+        follow_up_questions=result["structured"]["follow_up_questions"],
         steps=result["thought_process"],
         sources=[Passage(**s) for s in result["sources"]],
     )

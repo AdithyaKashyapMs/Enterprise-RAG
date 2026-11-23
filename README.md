@@ -43,6 +43,15 @@ are answered from memory), rewrites follow-ups into standalone queries, retries 
 wording or a `source` filter, and expands around hits. Every passage has a stable citation id
 like `cronjobs.docx#12`, and answers must cite them.
 
+**Structured, verified answers.** The agent finishes by calling a `submit_answer` tool whose
+arguments follow a Pydantic schema: `answer`, `citations`, `answered_from_docs`, `confidence`
+(high / medium / low) and up to 3 `follow_up_questions`. Using a tool call makes the provider
+return schema-shaped JSON in the same LLM call that writes the answer. A `finalize` graph node
+then checks the result against what actually happened in the turn: any citation that no tool
+returned is dropped (and removed from the answer text), and an answer that claims to come from
+the docs with no valid citation is downgraded to low confidence. Plain-text answers (tool budget
+and fallback paths) are parsed into the same shape, so the API, MCP and UI always see one format.
+
 **Safety rails around the loop**
 - Guardrails before the agent: deterministic jailbreak / topic checks, then NeMo Colang rails.
 - `MAX_TOOL_ROUNDS` (default 4) caps tool use per question, then forces an answer.
@@ -192,7 +201,9 @@ REST API:
 curl -X POST localhost:8000/query -H 'content-type: application/json' \
      -d '{"q": "How do I stop overlapping CronJob runs?"}'
 # -> {answer, thread_id, thought_process: ["Tool: search_docs(query=...)", ...],
-#     sources: [{id, source, chunk_index, content, score}], status}
+#     sources: [{id, source, chunk_index, content, score}],
+#     structured: {citations, confidence, answered_from_docs, follow_up_questions, invalid_citations},
+#     related_documents, related_questions, status}
 ```
 
 Pass the returned `thread_id` back to continue a conversation. `GET /graph` renders the agent
@@ -201,7 +212,7 @@ graph; `GET /health` is a liveness probe.
 ## Tests
 
 ```bash
-pytest -q tests     # 72 tests, fully offline (scripted fake LLM, in-memory corpus)
+pytest -q tests     # 81 tests, fully offline (scripted fake LLM, in-memory corpus)
 ```
 
 Covers the tool-calling loop (search → cite, memory turns without tools, multi-tool plans with

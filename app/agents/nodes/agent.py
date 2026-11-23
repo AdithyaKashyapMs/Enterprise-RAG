@@ -13,13 +13,14 @@ import logfire
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from app.agents.state import AgentState, compact_history, split_turn
+from app.agents.structured import SUBMIT_ANSWER, SUBMIT_ANSWER_TOOL
 from app.agents.tools import TOOLS
 from app.config import settings
 from app.gateway.client import get_langchain_llm, get_tool_llm
 from app.services.retrieval.qdrant_service import RetrievalError
 from app.tools import docs
 
-SYSTEM_PROMPT = """You are a Senior Technical Architect assistant for internal documentation \
+SYSTEM_PROMPT = f"""You are a Senior Technical Architect assistant for internal documentation \
 (Kubernetes, Kubernetes Jobs/CronJobs, autoscaling, Databricks jobs, cluster architecture, Intel \
 hardware, networking).
 
@@ -32,6 +33,10 @@ query; resolve follow-ups ("that", "it") using the conversation.
 - Greetings, thanks, or questions about this conversation itself need no tools.
 
 How to answer:
+- Finish by calling `{SUBMIT_ANSWER}` exactly once, with the answer, the ids of the passages \
+it uses, whether the docs answered it, your confidence and up to 3 follow-up questions. Never reply \
+with plain text. For greetings or questions about this conversation, call it with \
+answered_from_docs=false and no citations.
 - State facts only from tool results. Cite every passage you use with its id in square brackets, \
 e.g. [cronjobs.docx#12].
 - If the documentation doesn't cover it, say "I couldn't find this in the documentation" — never \
@@ -51,7 +56,7 @@ _plain_llm = None
 def _llms():
     global _tool_llm, _plain_llm
     if _tool_llm is None:
-        _tool_llm = get_tool_llm(TOOLS)
+        _tool_llm = get_tool_llm([*TOOLS, SUBMIT_ANSWER_TOOL])
         _plain_llm = get_langchain_llm(feature="agent")
     return _tool_llm, _plain_llm
 

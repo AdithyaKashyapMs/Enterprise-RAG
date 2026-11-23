@@ -72,7 +72,14 @@ def test_ask_assistant_wraps_agent(monkeypatch):
             "question": q, "answer": "Use Forbid [cronjobs.docx#3].", "thread_id": "t-1",
             "thought_process": ["Tool: search_docs(query='x')"], "status": "ok",
             "sources": [dict(fake_search("Forbid")[0], id="cronjobs.docx#3")],
+            "structured": {
+                "answer": "Use Forbid [cronjobs.docx#3].", "citations": ["cronjobs.docx#3"],
+                "answered_from_docs": True, "confidence": "high",
+                "follow_up_questions": ["What does Replace do?"], "invalid_citations": [], "source": "structured",
+            },
         },
     )
     out = call("ask_assistant", {"question": "overlapping runs?"}).structured_content
     assert out["thread_id"] == "t-1" and out["sources"][0]["id"] == "cronjobs.docx#3"
+    assert out["confidence"] == "high" and out["citations"] == ["cronjobs.docx#3"]
+    assert out["follow_up_questions"] == ["What does Replace do?"]

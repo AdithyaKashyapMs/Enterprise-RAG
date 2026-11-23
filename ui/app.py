@@ -52,7 +52,8 @@ CITATION_RE = re.compile(r"\[([^\[\]]+#\d+)\]")
 def voted_chunk_ids(message: dict) -> list[str]:
     """The passages a vote applies to: the ones the answer cites, else every source shown."""
     source_ids = [s["id"] for s in message.get("sources", []) if s.get("id")]
-    cited = [cid for cid in CITATION_RE.findall(message["content"]) if cid in source_ids]
+    verified = (message.get("structured") or {}).get("citations") or []
+    cited = verified or [cid for cid in CITATION_RE.findall(message["content"]) if cid in source_ids]
     return list(dict.fromkeys(cited)) or source_ids
 
 
@@ -84,6 +85,22 @@ def render_feedback(index: int, message: dict) -> None:
 
 def queue_question(question: str) -> None:
     st.session_state.queued_prompt = question
+
+
+CONFIDENCE_BADGE = {"high": "🟢 High confidence", "medium": "🟡 Medium confidence", "low": "🔴 Low confidence"}
+
+
+def render_structured(index: int, message: dict) -> None:
+    info = message.get("structured") or {}
+    if not info:
+        return
+    badge = CONFIDENCE_BADGE.get(info.get("confidence"), "")
+    note = "" if info.get("answered_from_docs") else " · not found in the documentation"
+    if info.get("invalid_citations"):
+        note += f" · {len(info['invalid_citations'])} unverified citation(s) removed"
+    st.caption(badge + note)
+    for j, q in enumerate(info.get("follow_up_questions", [])):
+        st.button(f"↪ {q}", key=f"followup_{st.session_state.session_id}_{index}_{j}", on_click=queue_question, args=(q,))
 
 
 def render_related(index: int, message: dict) -> None:
@@ -142,6 +159,7 @@ for i, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
         render_sources(message.get("sources", []))
+        render_structured(i, message)
         render_feedback(i, message)
         render_related(i, message)
 
@@ -186,7 +204,9 @@ if prompt:
             "question": prompt,
             "related_documents": data.get("related_documents", []),
             "related_questions": data.get("related_questions", []),
+            "structured": data.get("structured") or {},
         }
         st.session_state.messages.append(message)
+        render_structured(len(st.session_state.messages) - 1, message)
         render_feedback(len(st.session_state.messages) - 1, message)
         render_related(len(st.session_state.messages) - 1, message)

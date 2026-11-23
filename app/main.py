@@ -52,6 +52,15 @@ class RelatedDocument(BaseModel):
     snippet: str = ""
 
 
+class StructuredAnswerOut(BaseModel):
+    citations: list[str] = Field(description="Passage ids the answer relies on, all verified as retrieved")
+    answered_from_docs: bool
+    confidence: str = Field(description="high | medium | low")
+    follow_up_questions: list[str]
+    invalid_citations: list[str] = Field(description="Ids the model cited that were never retrieved (removed)")
+    source: str = Field(description="structured (schema-enforced) | text (parsed from plain text)")
+
+
 class QueryResponse(BaseModel):
     question: str
     answer: str
@@ -61,6 +70,7 @@ class QueryResponse(BaseModel):
     sources: list[Source]
     related_documents: list[RelatedDocument] = []
     related_questions: list[str] = []
+    structured: StructuredAnswerOut | None = None
 
 
 class StarterQuestion(BaseModel):

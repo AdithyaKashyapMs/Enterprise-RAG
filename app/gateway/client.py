@@ -70,7 +70,7 @@ def get_langchain_llm(feature: str = "agent", temperature: float = 0.0, key_fall
     return models[0].with_fallbacks(models[1:])
 
 
-def get_tool_llm(tools: Sequence[BaseTool], feature: str = "agent", temperature: float = 0.0) -> Runnable:
-    """A chat model with `tools` bound, falling back across keys/providers."""
+def get_tool_llm(tools: Sequence[BaseTool | dict], feature: str = "agent", temperature: float = 0.0) -> Runnable:
+    """A chat model with `tools` (LangChain tools or OpenAI-format tool schemas) bound, falling back across keys/providers."""
     bound = [m.bind_tools(list(tools)) for m in _base_models(feature, temperature)]
     return bound[0] if len(bound) == 1 else bound[0].with_fallbacks(bound[1:])

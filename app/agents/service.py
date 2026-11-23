@@ -9,11 +9,12 @@ from typing import NotRequired, TypedDict
 import logfire
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.agents.graph import rag_agent, record_turn
+from app.agents.graph import rag_agent, record_turn, retrieved_ids
 from app.agents.state import split_turn
+from app.agents.structured import SUBMIT_ANSWER, AnswerRecord, from_text
 from app.guardrails import guard
 from app.services import feedback, recommend
-from app.tools.docs import citation_id, cited_ids
+from app.tools.docs import citation_id
 
 
 class SourceOut(TypedDict):
@@ -34,6 +35,7 @@ class AgentResult(TypedDict):
     sources: list[SourceOut]
     related_documents: list[recommend.RelatedDocument]
     related_questions: list[str]
+    structured: AnswerRecord   # citations (validated), confidence, follow-ups, ...
 
 
 def _describe_call(call: dict) -> str:
@@ -41,15 +43,15 @@ def _describe_call(call: dict) -> str:
     return f"Tool: {call['name']}({args})"
 
 
-def summarise_turn(messages: list) -> tuple[str, list[str], list[SourceOut]]:
-    """Extract (answer, step log, de-duplicated sources) from the current turn's messages."""
+def summarise_turn(messages: list) -> tuple[AnswerRecord, list[str], list[SourceOut]]:
+    """Extract (structured answer, step log, de-duplicated sources) from the current turn's messages."""
     _, turn = split_turn(messages)
     steps: list[str] = []
     sources: dict[str, SourceOut] = {}
 
     for m in turn:
         if isinstance(m, AIMessage) and m.tool_calls:
-            steps.extend(_describe_call(c) for c in m.tool_calls)
+            steps.extend(_describe_call(c) for c in m.tool_calls if c["name"] != SUBMIT_ANSWER)
         elif isinstance(m, ToolMessage):
             for doc in m.artifact or []:
                 sid = doc.get("id") or citation_id(doc)
@@ -64,9 +66,10 @@ def summarise_turn(messages: list) -> tuple[str, list[str], list[SourceOut]]:
                     }
 
     final = next((m for m in reversed(turn) if isinstance(m, AIMessage) and not m.tool_calls), None)
-    answer = final.content if final and isinstance(final.content, str) else ""
+    text = final.content if final and isinstance(final.content, str) else ""
+    record = (final.additional_kwargs.get("structured") if final else None) or from_text(text, retrieved_ids(turn))
     steps.append("Answered from memory (no tools)" if not steps else f"Answered after {len(steps)} tool call(s)")
-    return answer, steps, sorted(sources.values(), key=lambda s: -s["score"])
+    return record, steps, sorted(sources.values(), key=lambda s: -s["score"])
 
 
 def ask(question: str, thread_id: str | None = None) -> AgentResult:
@@ -85,6 +88,7 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
             sources=[],
             related_documents=[],
             related_questions=[],
+            structured=from_text(rail_response, []),
         )
 
     with logfire.span("Agent run", thread_id=thread_id):
@@ -93,8 +97,8 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
             config={"configurable": {"thread_id": thread_id}, "recursion_limit": 25},
         )
 
-    answer, steps, sources = summarise_turn(final["messages"])
-    cited = cited_ids(answer, [s["id"] for s in sources])
+    record, steps, sources = summarise_turn(final["messages"])
+    answer, cited = record["answer"], record["citations"]
 
     # Recommendations first (so this turn doesn't recommend itself), then log what was shown.
     with logfire.span("Recommendations"):
@@ -114,4 +118,5 @@ def ask(question: str, thread_id: str | None = None) -> AgentResult:
         sources=sources,
         related_documents=related_docs,
         related_questions=related_qs,
+        structured=record,
     )
